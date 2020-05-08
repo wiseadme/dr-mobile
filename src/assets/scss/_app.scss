@@ -1,0 +1,23 @@
+.classic {
+  background-color: $white !important;
+
+  &-border {
+    border: 4px solid #063B87 !important;
+  }
+
+  &-color {
+    color: #063B87 !important;
+  }
+}
+
+.new {
+  background-color: $blue !important;
+
+  &-border {
+    border: 4px solid $white !important;
+  }
+
+  &-color {
+    color: $white !important;
+  }
+}

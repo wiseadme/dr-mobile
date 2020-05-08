@@ -1,0 +1,23 @@
+[
+  {
+    "name": "кабинет",
+    "link": "/cabinet/profile",
+    "icon": "account_box",
+    "prop": "cabinet",
+    "show": false
+  },
+  {
+    "name": "события",
+    "link": "/cabinet/events",
+    "icon": "event",
+    "prop": "calendar",
+    "show": false
+  },
+  {
+    "name": "уведомления",
+    "link": "/cabinet/notifications",
+    "icon": "email",
+    "prop": "notifications",
+    "show": false
+  }
+]

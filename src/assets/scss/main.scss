@@ -1,0 +1,72 @@
+@import './reset';
+@import './global';
+@import './settings';
+@import './app';
+@import './app-modal';
+
+html {
+  width: 100%;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  width: 100%;
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  @include fontExo($darkBlue, 16px);
+}
+
+.block-page {
+  display: none;
+}
+
+.turn {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100%;
+  background: $white;
+  z-index: 9999;
+
+  &__logo {
+    width: 40vh;
+  }
+
+  &__content {
+    @include flexAlign(center, center, column);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  &__text {
+    @include fontExo($classicBlue, 2vw)
+  }
+}
+
+@media only screen and (max-width: 1024px) and (orientation: portrait) {
+  .turn {
+    display: none;
+  }
+  .app {
+    display: block;
+  }
+}
+
+@media only screen and (min-width: 440px) and (orientation: landscape) {
+  .turn {
+    display: block;
+  }
+  .app {
+    display: none;
+  }
+}
+
+

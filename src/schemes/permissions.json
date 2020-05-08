@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "approveRegistrationUpdate": true,
+    "readyToEventStatusRead": true,
+    "userDelete": true,
+    "userUpdate": true,
+    "passwordUpdate": true,
+    "notificationsRead": true,
+    "invitesUserCreate": true,
+    "calendarRead": true
+  }
+}

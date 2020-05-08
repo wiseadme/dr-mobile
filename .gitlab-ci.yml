@@ -1,0 +1,106 @@
+
+stages:
+    - build
+    - release
+    - deploy
+ 
+cache:
+  paths:
+    - dist/
+#    - .m2/repository
+       
+build_nmp:
+  image: nikolaik/python-nodejs:python3.8-nodejs13-alpine
+  stage: build
+  script:
+  - npm i
+  - npm run build
+  - ls -la
+  only:
+      - master
+      - develop
+      - /^demo.*$/i	
+  artifacts:
+    paths:
+      - dist/
+
+  
+
+deploy_docker_dev:
+  image: docker:19.03.1
+  stage: release
+  services:
+    - docker:19.03.1-dind
+  script:
+    - ls -la
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build -f dockerfile -t $CI_PROJECT_NAME .
+    - docker tag $CI_PROJECT_NAME $CI_REGISTRY_IMAGE/$CI_PROJECT_NAME:latest
+    - docker push $CI_REGISTRY_IMAGE/$CI_PROJECT_NAME:latest
+  only:
+    - develop    
+
+deploy_docker_master:
+  image: docker:19.03.1
+  stage: release
+  services:
+    - docker:19.03.1-dind
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build -f dockerfile -t $CI_PROJECT_NAME:$CI_COMMIT_TAG .
+    - docker tag $CI_PROJECT_NAME:$CI_COMMIT_TAG $CI_REGISTRY_IMAGE/$CI_PROJECT_NAME:$CI_COMMIT_TAG
+    - docker push $CI_REGISTRY_IMAGE/$CI_PROJECT_NAME:$CI_COMMIT_TAG
+  only:
+    - master
+
+deploy_develop_stend:
+  image: kroniak/ssh-client
+  stage: deploy
+  before_script:
+    - eval $(ssh-agent -s)
+    - mkdir -p ~/.ssh
+    - echo "$PRIVAT_SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 700 ~/.ssh/id_rsa
+    - eval "$(ssh-agent -s)"
+    - ssh-add ~/.ssh/id_rsa
+    - ssh-keyscan -H "$DEV_SERVER" >> ~/.ssh/known_hosts
+  script:
+    - cp -R ./dist ./html
+    - ls ./html
+    - scp -r ./html deploy@$DEV_SERVER:/var/www/DRM
+  only:
+    - develop
+
+deploy_demo_stend:
+  image: kroniak/ssh-client
+  stage: deploy
+  before_script:
+    - eval $(ssh-agent -s)
+    - mkdir -p ~/.ssh
+    - echo "$PRIVAT_SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 700 ~/.ssh/id_rsa
+    - eval "$(ssh-agent -s)"
+    - ssh-add ~/.ssh/id_rsa
+    - ssh-keyscan -H "$DEMO_SERVER" >> ~/.ssh/known_hosts
+  script:
+    - cp -R ./dist ./html
+    - scp -r ./html deploy@$DEMO_SERVER:/var/www/
+  only:
+    - /^demo.*$/i
+
+.deploy_old_develop_stend:
+  image: kroniak/ssh-client
+  stage: deploy
+  before_script:
+    - eval $(ssh-agent -s)
+    - mkdir -p ~/.ssh
+    - echo "$PRIVAT_SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+    - chmod 700 ~/.ssh/id_rsa
+    - eval "$(ssh-agent -s)"
+    - ssh-add ~/.ssh/id_rsa
+    - ssh-keyscan -H "185.255.132.135" >> ~/.ssh/known_hosts
+  script:
+    - mv ./dist ./html
+    - scp -r ./html root@185.255.132.135:/var/www/
+  only:
+    - develop

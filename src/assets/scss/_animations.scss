@@ -1,0 +1,42 @@
+.fadeIn-enter, .fadeIn-leave-to {
+  opacity: 0;
+}
+
+.fadeIn-enter-active, .fadeIn-leave-active{
+  transition: opacity .2s linear;
+}
+
+.scaleXIn-enter, .scaleXIn-leave-to {
+  transform: scaleX(0);
+}
+
+.scaleXIn-enter-active, .scaleXIn-leave-active{
+  transition: transform .1s ease-in-out;
+}
+
+.scaleInOut-enter, .scaleInOut-leave-to{
+  opacity: 0;
+  transform: scale(.8);
+}
+
+.scaleInOut-enter-active, .scaleInOut-leave-active{
+  transition: all .1s;
+}
+
+.slideInLeft-enter, .slideInLeft-leave-to{
+  opacity: 0;
+  transform: translateX(-30px);
+}
+
+.slideInLeft-enter-active, .slideInLeft-leave-active{
+  transition: all .1s;
+}
+
+.slideUp-enter, .slideUp-leave-to{
+  opacity: 0;
+  transform: translateY(100%);
+}
+
+.slideUp-enter-active, .slideUp-leave-active{
+  transition: all .3s;
+}
