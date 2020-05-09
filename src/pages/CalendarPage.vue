@@ -9,9 +9,9 @@
           :language="language"
           :monday-first="true"
           :disabled-dates="disabledDates"
-          :day-cell-content="changeDayContent"
+          :day-cell-content="changeCalendarContent"
           @selected="selectedHandler"
-          @selectedDisabled="showEventListeners"
+          @selectedDisabled="selectedHandler"
           @opened="openHandler"
         >
         </Datepicker>
@@ -92,6 +92,9 @@
           <h1 class="modal-header">{{ selected.name }}</h1>
           <h2 class="modal-header">{{ `ОУ ${equipments.objectName}` }}</h2>
           <h2 class="modal-header">{{ `Всего ${equipments.total} устройств` }}</h2>
+          <h2 class="modal-header" v-if="dateParams && dateParams.isFinished">
+            {{ `Исполнено обязательств ${selected.reductionVolume}(МВт)` }}
+          </h2>
         </div>
         <div ref="modal" class="modal-body" slot="body">
           <div class="info__item" v-for="(eq, i) in equipments.items" :key="eq.name + i">
@@ -108,11 +111,11 @@
   </div>
 </template>
 <script>
+	import DrLoader from '@/components/ui/DrLoader'
+	import DrObjectCard from '../components/DrObjectCard'
+	import infiniteScroll from '@/services/infiniteScroll'
 	import Datepicker from 'vuejs-datepicker'
 	import { ru } from 'vuejs-datepicker/dist/locale'
-	import infiniteScroll from '@/services/infiniteScroll'
-	import DrObjectCard from '../components/DrObjectCard'
-	import DrLoader from '@/components/ui/DrLoader'
 	import { debounce } from '@/services/debounce'
 
 	export default {
@@ -159,7 +162,7 @@
 				},
 				showErrorMessage: false,
 				listElement: null,
-        openDate: null
+				openDate: null
 			}
 		},
 
@@ -175,7 +178,6 @@
 		},
 
 		mounted() {
-			this.setClassicStyleDp()
 			this.addListeners()
 		},
 
@@ -187,78 +189,54 @@
 				fetchObjects: `Data/${action.FETCH_OBJECTS}`
 			}),
 
-			formatDate(date) {
-				let day = date.getDate() + ''
-				let month = (date.getMonth() + 1) + ''
-				let year = date.getFullYear() + ''
-				date = [day, month, year].map(it => {
-					return it.length === 1 ? '0' + it : it
-				})
-				return date.reverse().join('-')
-			},
-
-			changeDayContent(e) {
-				let date = this.formatDate(new Date(e.timestamp))
-				let day = new Date(e.timestamp).getDate() + ''
-				let flag = +day < new Date().getDate()
-				let event = ''
-				const found = this.dates.dates?.find(it => it.eventDate === date)
-				if (!found && this.dates.events) {
-					event = this.dates.events.find(it => it.eventDate === date)
-				}
-				if (found && (found.isXmlAvailability && found.isXmlEvent) && !event) return day + ' &#9872;'
-				if (event && event.isPlanned) return day + ' &#9733;'
-				if (event && event.isFinished) return day + ' &#10004;'
-				if ((!event || !found) && flag) return day + ' &#8855;'
-				return day
-			},
-
 			scrollHandler(box, offset, callback) {
 				infiniteScroll(box, offset, callback)
 			},
 
-			async setEventDates() {
-				const data = await this.getEventDates()
-        this.openDate = new Date(new Date(data.headers.date).getTime() + 24 * 60 * 60 * 1000)
-				this.dates = data.data
-					this.dates.events.forEach(it => {
-						this.disabledDates.dates.push(new Date(it.eventDate))
-					})
+			formatDate(date) {
+				const formatted = this.$moment(date).format()
+				return formatted.slice(0, formatted.indexOf('T'))
 			},
 
-			// при выборе даты без события на календаре
-			selectedHandler(date) {
-				if (date) this.checkedDate = date
+			findDate(datesArray, date = null) {
+				return datesArray.find(it => {
+					if (!date) {
+						return it.eventDate === this.formatDate(this.checkedDate)
+					}
+					return it.eventDate === this.formatDate(date)
+				})
+			},
+
+			async setEventDates() {
+				const dates = await this.getEventDates()
+				const serverDate = new Date(dates.headers.date)
+				this.openDate = new Date(serverDate.getTime() + 24 * 60 * 60 * 1000)
+				this.dates = dates.data
+				this.dates.events.forEach(it => {
+					this.disabledDates.dates.push(new Date(it.eventDate))
+				})
+			},
+
+			selectedHandler(date = null) {
+				if (date) {
+					if (date.timestamp) {
+						this.checkedDate = new Date(date.timestamp)
+					} else {
+						this.checkedDate = date
+					}
+				}
 				this.clearBeforeShow()
-				this.detectEventDate()
-				if (!this.dateParams) this.detectSimpleDate()
-				if (this.dateParams) this.setAggregators()
+				this.setDateParams()
+				this.dateParams ? this.setAggregators() : false
 				this.showErrorMessage = !this.dateParams
 				setTimeout(() => this.showAggregators = true)
 			},
 
-			//при выборе даты события показываем данные на дату
-			showEventListeners({ timestamp }) {
-				this.checkedDate = new Date(timestamp)
-				this.clearBeforeShow()
-				this.detectEventDate()
-				this.setAggregators()
-				setTimeout(() => this.showAggregators = true)
-			},
-
-			//определяем тип и параметры события
-			detectEventDate() {
-				this.dateParams = this.dates.events.find(it => {
-					return it.eventDate === this.formatDate(this.checkedDate)
-				})
-				return this.isEventDay = true
-			},
-
-			detectSimpleDate() {
-				this.dateParams = this.dates.dates.find(it => {
-					return it.eventDate === this.formatDate(this.checkedDate)
-				})
-				return this.isEventDay = false
+			setDateParams() {
+				let date = this.findDate(this.dates.events)
+				this.isEventDay = !!date
+				!date ? date = this.findDate(this.dates.dates) : false
+				this.dateParams = date
 			},
 
 			clearBeforeShow() {
@@ -379,7 +357,7 @@
 							this.hideItemsPreloader(500)
 						})
 						.catch((err) => {
-							console.log(err)
+							console.error(err)
 							this.showItemsPreload = false
 						})
 				}
@@ -389,15 +367,6 @@
 				setTimeout(() => {
 					this.showItemsPreload = false
 				}, duration)
-			},
-
-			setClassicStyleDp() {
-				if (!this.isNewStyle) {
-					const dpWrap = document.querySelector('.vdp-datepicker>div')
-					const dp = dpWrap.querySelector('input')
-					dp.classList.add('input-classic')
-					dpWrap.classList.add('wrap-classic')
-				}
 			},
 
 			addListeners() {
@@ -412,19 +381,33 @@
 			removeListeners() {
 				this.$refs.results.removeEventListener('scroll', this.scrollHandler)
 				this.$refs.modal.$refs.body.removeEventListener('scroll', this.scrollHandler)
+			},
+
+			changeCalendarContent(e) {
+				if (this.dates.dates || this.dates.events) {
+					let eventDate = null
+					let simpleDate = null
+					let date = new Date(e.timestamp)
+					let day = date.getDate()
+					let isPast = day < new Date().getDate()
+					simpleDate = this.findDate(this.dates.dates, this.formatDate(date))
+					!simpleDate ? eventDate = this.findDate(this.dates.events, this.formatDate(date)) : false
+					if (simpleDate && (simpleDate.isXmlAvailability && simpleDate.isXmlEvent)) return day + ' &#9872;'
+					if (eventDate && eventDate.isPlanned) return day + ' &#9733;'
+					if (eventDate && eventDate.isFinished) return day + ' &#10004;'
+					if ((!eventDate || !simpleDate) && isPast) return day + ' &#8855;'
+					if (date.getMonth() < new Date().getMonth() && !eventDate) return day + ' &#8855;'
+					return day
+				}
 			}
 		},
 
 		computed: {
 			eventStatus() {
-				const event = this.dates.events.find(it => {
-					return this.formatDate(this.checkedDate) === it.eventDate
-				})
+				const event = this.findDate(this.dates.events)
 				if (event) return event.statusName
 				if (!event) {
-					const date = this.dates.dates.find(it => {
-						return this.formatDate(this.checkedDate) === it.eventDate
-					})
+					const date = this.findDate(this.dates.dates)
 					if (date && !date.isXmlEvent) return 'нет данных'
 					if (date && date.isRejected) return date.statusName
 				}
@@ -437,10 +420,6 @@
 
 			confirmed() {
 				return this.objects.items.filter(it => it.eventResult).length
-			},
-
-			tomorrowDate() {
-				return new Date(new Date().getTime() + 24 * 60 * 60 * 1000)
 			}
 		},
 
@@ -467,6 +446,12 @@
     left: 0;
     z-index: 2;
 
+    & > div {
+      &:nth-child(1) {
+        border: 4px solid $classicBlue !important;
+      }
+    }
+
     div:nth-child(1) {
       border: 4px solid $white;
       border-radius: 10px;
@@ -475,29 +460,12 @@
     }
 
     input {
-      @include fontExo($white, 1em);
-      width: 100%;
-      height: 100%;
-      padding-bottom: 15px !important;
-      text-align: right;
-      background: transparent !important;
-
-      &::placeholder {
-        color: $white;
-      }
-    }
-
-    .wrap-classic {
-      border: 4px solid $classicBlue !important;
-    }
-
-    .input-classic {
       @include fontExo($classicBlue, 1em);
       width: 100%;
       height: 100%;
       padding: 10px;
-      background-color: transparent !important;
       text-align: right;
+      background: transparent !important;
 
       &::placeholder {
         color: $white;
