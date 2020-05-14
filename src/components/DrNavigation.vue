@@ -26,6 +26,9 @@
       },
       role: {
         type: Object
+      },
+      page: {
+        type: String
       }
     },
 
@@ -39,7 +42,9 @@
 
     created() {
       this.nav.forEach(it => {
-        if (this.permissions[it.prop]?.isAllowed) {
+        if (this.permissions[it.prop]
+          && this.permissions[it.prop].isAllowed
+        ) {
           this.$set(it, 'show', true)
         }
       })
@@ -51,14 +56,13 @@
       }),
 
       routeTo(it) {
-        this.nav.map(it => it.active = false)
         if (it.link && this.$route.path !== it.link) {
+          this.nav.map(it => it.active = false)
           this.$router.push(it.link)
         }
         if (!it.link) {
-          this.logoutUser().then(() => {
-            this.$router.replace('/auth/login')
-          })
+          this.logoutUser()
+            .then(() => this.$router.replace('/auth/login'))
         }
         this.show = false
       }
@@ -66,10 +70,11 @@
 
     watch: {
       '$route': {
-        handler(to) {
-          const key = to.path.split('/')[2]
+        handler() {
           this.nav.forEach(it => {
-            this.$set(it, 'active', !!(it.link && it.link.indexOf(key) >= 0))
+            if (it.link) {
+              this.$set(it, 'active', !!(it.link.includes(this.page)))
+            }
           })
         },
         immediate: true
@@ -84,7 +89,7 @@
     height: 50px;
     width: 50px;
     position: fixed;
-    z-index: 1000;
+    z-index: 1001;
     bottom: 7%;
     right: 5%;
     border-radius: 50px;

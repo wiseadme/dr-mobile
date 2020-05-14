@@ -1,5 +1,10 @@
 <template>
-  <div :class="['agregators-page']">
+  <div :class="['aggregators-page']">
+    <DrChart
+      v-if="showChart"
+      :chartParams="chartParams"
+      @close-chart="showChart = false"
+    />
     <div class="cab-top">
       <div class="date-wrap">
         <Datepicker
@@ -12,12 +17,13 @@
           :day-cell-content="changeCalendarContent"
           @selected="selectedHandler"
           @selectedDisabled="selectedHandler"
-          @opened="openHandler"
+          @opened="showAgregators = false"
         >
         </Datepicker>
         <div v-if="showAggregators" :class="['date-attr']">
-          <i :class="['material-icons date-attr__icon', isEventDay ? 'green': 'red']">{{isEventDay ?
-            'thumb_up' : 'thumb_down'}}</i>
+          <i :class="['material-icons date-attr__icon', isEventDay ? 'green': 'red']">
+            {{isEventDay ? 'thumb_up' : 'thumb_down'}}
+          </i>
           <span class="date-attr__text">{{ eventStatus }}</span>
         </div>
       </div>
@@ -31,7 +37,7 @@
           pre-icon="dns"
           @input="changeSelected"
         />
-        <transition name="fadeIn" v-if="dateParams && dateParams.isXmlAvailability">
+        <transition name="fadeIn" v-show="dateParams && dateParams.isXmlAvailability">
           <div :class="['select__info', 'classic-color']" v-if="selected">
             <v-text-indicator
               :text="`Всего ОУ ${ objects.params.totalElements }`"
@@ -46,21 +52,32 @@
               :text="`В том числе исполненных ${ confirmed }`"
               :type="confirmed ? 'scs' : 'wrn'"
             />
+            <v-text-indicator
+              v-if="isEventDay && dateParams.isFinished && selected.reductionVolume"
+              :text="`Исполнено обязательств (МВт): ${ selected.reductionVolume }`"
+              :type="selected.reductionVolume ? 'scs' : 'wrn'"
+            />
           </div>
         </transition>
       </div>
     </div>
     <transition name="slideUp" mode="in-out">
-      <div ref="results" class="cab-bottom" v-show="objects.items.length && dateParams.isXmlAvailability">
+      <div
+        ref="results"
+        class="cab-bottom"
+        v-scroll="fetchAggregatorObjects"
+        v-show="objects.items.length && dateParams.isXmlAvailability"
+      >
         <div class="results">
           <div class="results__item" v-for="(it, i) of objects.items" :key="it.name + i" ref="items">
             <DrObjectCard
-              @click="setObjectEquipments"
               :item="it"
               :is-event-day="isEventDay"
               :date-params="dateParams"
               :info="{name: selected.name}"
               v-show="selected"
+              @click="setObjectEquipments"
+              @open-chart="openChart"
             />
           </div>
         </div>
@@ -92,17 +109,22 @@
           <h1 class="modal-header">{{ selected.name }}</h1>
           <h2 class="modal-header">{{ `ОУ ${equipments.objectName}` }}</h2>
           <h2 class="modal-header">{{ `Всего ${equipments.total} устройств` }}</h2>
-          <h2 class="modal-header" v-if="dateParams && dateParams.isFinished">
-            {{ `Исполнено обязательств ${selected.reductionVolume}(МВт)` }}
+          <h2 class="modal-header" v-if="equipments.reductionVol && dateParams.isFinished">
+            {{ `Исполнено обязательств ${equipments.reductionVol}(МВт)` }}
           </h2>
         </div>
-        <div ref="modal" class="modal-body" slot="body">
-          <div class="info__item" v-for="(eq, i) in equipments.items" :key="eq.name + i">
-            <span class="info__text">{{ eq.name }}</span>
-            <v-checkbox color="#ffffff" :isChecked="eq.ready" label="готов" :disabled="true"/>
-            <span class="info__sub">
-            {{ eq.consumers ? eq.consumers.name : '' }}
-          </span>
+        <div
+          ref="modal"
+          class="modal-body"
+          slot="body"
+          v-scroll="fetchObjectEquipments"
+        >
+          <div class="equipments" v-for="(eq, i) in equipments.items" :key="eq.name + i">
+            <DrEquipmentCard
+              :item="eq"
+              :dateParams="dateParams"
+              @open-chart="openChart"
+            />
           </div>
         </div>
         <dr-loader slot="footer" :show="showItemsPreload"/>
@@ -111,20 +133,24 @@
   </div>
 </template>
 <script>
-	import DrLoader from '@/components/ui/DrLoader'
-	import DrObjectCard from '../components/DrObjectCard'
-	import infiniteScroll from '@/services/infiniteScroll'
 	import Datepicker from 'vuejs-datepicker'
 	import { ru } from 'vuejs-datepicker/dist/locale'
-	import { debounce } from '@/services/debounce'
+	import DrLoader from '@/components/ui/DrLoader'
+	import DrObjectCard from '@/components/DrObjectCard'
+	import DrEquipmentCard from '@/components/DrEquipmentCard'
+	import DrChart from '@/components/DrChart'
 
 	export default {
 		components: {
 			Datepicker,
 			DrObjectCard,
+			DrEquipmentCard,
+			DrChart,
 			DrLoader
 		},
-		mixins: [],
+		props: {
+			page: {}
+		},
 		data() {
 			return {
 				language: ru,
@@ -139,6 +165,8 @@
 				isEventDay: false,
 				showInfoModal: false,
 				showItemsPreload: false,
+				showChart: false,
+				chartParams: null,
 				aggregators: {
 					items: [],
 					page: 0,
@@ -154,6 +182,7 @@
 				},
 				equipments: {
 					controlObjectId: '',
+					reductionVol: '',
 					objectName: '',
 					items: [],
 					page: 0,
@@ -162,7 +191,7 @@
 				},
 				showErrorMessage: false,
 				listElement: null,
-				openDate: null
+				openDate: null,
 			}
 		},
 
@@ -174,23 +203,26 @@
 				this.checkedDate = this.openDate
 			}
 			this.selectedHandler()
-			this.scrollHandler = debounce(this.scrollHandler, 100)
-		},
-
-		mounted() {
-			this.addListeners()
 		},
 
 		methods: {
 			...mapActions({
-				getEvents: `Data/${action.GET_EVENTS}`,
+				fetchAggregators: `Data/${action.FETCH_AGGREGATORS}`,
 				getEventDates: `Data/${action.GET_EVENT_DATES}`,
 				fetchEquipments: `Data/${action.FETCH_EQUIPMENTS}`,
-				fetchObjects: `Data/${action.FETCH_OBJECTS}`
+				fetchObjects: `Data/${action.FETCH_OBJECTS}`,
+				getChartParams: `Data/${action.GET_CHART_PARAMS}`
 			}),
 
-			scrollHandler(box, offset, callback) {
-				infiniteScroll(box, offset, callback)
+			openChart(params) {
+				this.getChartParams({
+					...params,
+					date: this.formatDate(this.checkedDate)
+				})
+					.then(res => {
+						this.chartParams = res
+						this.showChart = true
+					})
 			},
 
 			formatDate(date) {
@@ -210,7 +242,7 @@
 			async setEventDates() {
 				const dates = await this.getEventDates()
 				const serverDate = new Date(dates.headers.date)
-				this.openDate = new Date(serverDate.getTime() + 24 * 60 * 60 * 1000)
+				this.openDate = new Date(serverDate.getTime() + this.day)
 				this.dates = dates.data
 				this.dates.events.forEach(it => {
 					this.disabledDates.dates.push(new Date(it.eventDate))
@@ -248,10 +280,6 @@
 				}
 			},
 
-			openHandler() {
-				this.showAgregators = false
-			},
-
 			resetAggregators() {
 				this.aggregators.items = []
 				this.aggregators.page = 0
@@ -273,27 +301,28 @@
 			},
 
 			changeSelected(it) {
-				this.selected = ''
 				this.resetObjects()
+				this.selected = it
 				setTimeout(() => {
-					this.selected = it
 					this.setAggregatorObjects()
 				}, 200)
 			},
 
 			async setAggregators() {
-				const aggr = await this.getEvents({
+				await this.fetchAggregators({
 					date: this.formatDate(this.checkedDate),
 					page: this.aggregators.page
 				})
-				if (aggr && aggr.aggregators) {
-					aggr.aggregators.map(it => {
-						this.aggregators.items.push(it)
+					.then(({ aggregators }) => {
+						aggregators.map(it => {
+							this.aggregators.items.push(it)
+						})
 					})
-					this.showErrorMessage = false
-				}
-				this.showAgregators = true
-				this.aggregators.page += 1
+					.then(() => {
+						this.showErrorMessage = false
+						this.showAgregators = true
+						this.aggregators.page += 1
+					})
 			},
 
 			setAggregatorObjects() {
@@ -304,33 +333,33 @@
 			},
 
 			fetchAggregatorObjects() {
-				if (this.objects.more) {
-					if (this.selected) {
-						this.showItemsPreload = true
-					}
+				if (this.objects.more && this.selected) {
+					this.showItemsPreload = true
 					this.fetchObjects({
 						aggregatorId: this.selected.uid,
 						date: this.formatDate(this.checkedDate),
 						page: this.objects.page
 					})
 						.then(res => {
-							if (res && res.objects) {
-								res.objects.map(it => {
-									this.objects.items.push(it)
-								})
-								const { totalElements, totalReady, totalSuccessResult } = res
-								this.objects.params = { totalElements, totalReady, totalSuccessResult }
-								this.objects.more = res.more
-								this.objects.page += 1
-								this.hideItemsPreloader(500)
+							res.objects.map(it => {
+								this.objects.items.push(it)
+							})
+							this.objects.params = {
+								totalElements: res.totalElements,
+								totalReady: res.totalReady,
+								totalSuccessResult: res.totalSuccessResult
 							}
+							this.objects.more = res.more
+							this.objects.page += 1
+							this.hideItemsPreloader(500)
 						})
-						.catch((err) => console.log(err))
+						.catch((err) => console.error(err))
 				}
 			},
 
 			setObjectEquipments(obj) {
 				this.equipments.objectName = obj.name
+				this.equipments.reductionVol = obj.reductionVolume
 				this.objects.objectId = obj.uid
 				this.resetObjectEquipments()
 				this.fetchObjectEquipments()
@@ -369,40 +398,39 @@
 				}, duration)
 			},
 
-			addListeners() {
-				this.$refs.results.addEventListener('scroll', this.scrollHandler.bind(this,
-					this.$refs.results, 100, this.fetchAggregatorObjects
-				))
-				this.$refs.modal.$refs.body.addEventListener('scroll', this.scrollHandler.bind(this,
-					this.$refs.modal.$refs.body, 80, this.fetchObjectEquipments
-				))
-			},
-
-			removeListeners() {
-				this.$refs.results.removeEventListener('scroll', this.scrollHandler)
-				this.$refs.modal.$refs.body.removeEventListener('scroll', this.scrollHandler)
-			},
-
 			changeCalendarContent(e) {
 				if (this.dates.dates || this.dates.events) {
 					let eventDate = null
-					let simpleDate = null
-					let date = new Date(e.timestamp)
-					let day = date.getDate()
-					let isPast = day < new Date().getDate()
-					simpleDate = this.findDate(this.dates.dates, this.formatDate(date))
+					const date = new Date(e.timestamp)
+					const day = date.getDate()
+					const isPast = e.timestamp < new Date().getTime()
+					const pastMonth = date.getMonth() < new Date().getMonth()
+					const pastYear = date.getFullYear() <= new Date().getFullYear()
+					const simpleDate = this.findDate(this.dates.dates, this.formatDate(date))
 					!simpleDate ? eventDate = this.findDate(this.dates.events, this.formatDate(date)) : false
 					if (simpleDate && (simpleDate.isXmlAvailability && simpleDate.isXmlEvent)) return day + ' &#9872;'
 					if (eventDate && eventDate.isPlanned) return day + ' &#9733;'
 					if (eventDate && eventDate.isFinished) return day + ' &#10004;'
 					if ((!eventDate || !simpleDate) && isPast) return day + ' &#8855;'
-					if (date.getMonth() < new Date().getMonth() && !eventDate) return day + ' &#8855;'
+					if (pastMonth && pastYear && !eventDate) return day + ' &#8855;'
 					return day
 				}
 			}
 		},
 
 		computed: {
+			day() {
+				return 24 * 60 * 60 * 1000
+			},
+
+			readyForAction() {
+				return this.objects.items.filter(it => it.ready).length
+			},
+
+			confirmed() {
+				return this.objects.items.filter(it => it.eventResult).length
+			},
+
 			eventStatus() {
 				const event = this.findDate(this.dates.events)
 				if (event) return event.statusName
@@ -412,19 +440,7 @@
 					if (date && date.isRejected) return date.statusName
 				}
 				return 'нет данных'
-			},
-
-			readyForAction() {
-				return this.objects.items.filter(it => it.ready).length
-			},
-
-			confirmed() {
-				return this.objects.items.filter(it => it.eventResult).length
 			}
-		},
-
-		beforeDestroy() {
-			this.removeListeners()
 		}
 	}
 </script>
@@ -525,7 +541,7 @@
     }
   }
 
-  .agregators-page {
+  .aggregators-page {
     @include flexAlign(center, flex-start, column);
     height: 100%;
     width: 100%;
@@ -545,18 +561,6 @@
     border-top-right-radius: 15px;
     border-top-left-radius: 15px;
     background: $white;
-  }
-
-  @media screen and (max-width: 1024px) {
-    .cab-bottom {
-      /*height: calc(100% - 130px) !important;*/
-    }
-  }
-
-  @media screen and (max-width: 968px) {
-    .cab-bottom {
-      /*height: calc(100% - 56px) !important;*/
-    }
   }
 
   .modal {
@@ -660,28 +664,13 @@
     }
   }
 
-  .info {
-    &__item {
-      @include flexAlign(center, space-between);
-      flex-wrap: wrap;
-      width: 100%;
-      border-bottom: 1px solid $white;
-      border-radius: 3px;
-      padding: 10px;
-      margin: 5px 0;
-    }
-
-    &__text {
-      display: block;
-      color: $white;
-    }
-
-    &__sub {
-      padding: 10px 0 0 0;
-      width: 100%;
-      color: $white;
-      font-size: 12px !important;
-    }
+  .equipments {
+    @include flexAlign(center, space-between);
+    flex-wrap: wrap;
+    width: 100%;
+    border-bottom: 1px solid $white;
+    border-radius: 3px;
+    padding: 5px;
   }
 
   .empty {

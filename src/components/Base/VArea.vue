@@ -53,11 +53,6 @@
           return this.symbolsCount = 0
         }
       }
-    },
-    computed: {
-      // symbolsCount() {
-      //   return +this.limit - this.text.length
-      // }
     }
   }
 </script>

@@ -38,38 +38,46 @@ const router = new Router({
     {
       path: '/cabinet',
       component: CabinetLayout,
+      props: route => ({
+        page: route.path.split('/')[2]
+      }),
       children: [
         {
           path: '/',
           name: 'cabinet',
-          component: () => import('@/pages/CabinetPage')
+          component: () => import('@/pages/CabinetPage'),
+          props: true
         },
         {
           path: '/cabinet/events',
           name: 'calendar',
-          component: () => import('@/pages/CalendarPage')
+          component: () => import('@/pages/CalendarPage'),
+          props: true
         },
         {
           path: '/cabinet/events/:event',
           name: 'event',
-          component: () => import('@/pages/CalendarPage')
+          component: () => import('@/pages/CalendarPage'),
+          props: true
         },
         {
           path: '/cabinet/profile',
           name: 'profile',
-          component: () => import('@/pages/ProfilePage')
+          component: () => import('@/pages/ProfilePage'),
+          props: true
         },
         {
           path: '/cabinet/profile/users',
           name: 'users-list',
-          component: () => import('@/pages/UsersPage')
+          component: () => import('@/pages/UsersPage'),
+          props: true
         },
         {
           path: '/cabinet/notifications',
           name: 'notifications',
-          component: () => import('@/pages/NotifyPage')
-
-        },
+          component: () => import('@/pages/NotifyPage'),
+          props: true
+        }
       ]
     }
   ]

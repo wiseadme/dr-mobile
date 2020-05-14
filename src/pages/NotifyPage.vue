@@ -12,7 +12,11 @@
         @input="fetchBySelectedValue"
       />
     </div>
-    <div ref="messages" class="messages">
+    <div
+      ref="messages"
+      class="messages"
+      v-scroll="reFetchNotifications"
+    >
       <DrInfoCard
         ref="message"
         v-for="(it, i) in notifyItems"
@@ -76,9 +80,7 @@
 </template>
 <script>
   import DrInfoCard from '@/components/DrInfoCard'
-  import infiniteScroll from '@/services/infiniteScroll'
   import DrLoader from '@/components/ui/DrLoader'
-  import { debounce } from '@/services/debounce'
   import permissionsMixin from '@/components/mixins/permissions'
 
   export default {
@@ -110,13 +112,8 @@
     },
 
     async created() {
-      this.scrollHandler = debounce(this.scrollHandler, 50)
       await this.fetchNotificationTypes().then(res => this.filterItems = res)
       this.selected = this.filterItems.find(it => it.code === 'event')
-    },
-
-    mounted() {
-      this.$refs.messages.addEventListener('scroll', this.scrollHandler)
     },
 
     methods: {
@@ -166,7 +163,7 @@
         this.notifyItems = this.notifyItems.filter(it => it.inn !== user.inn)
       },
 
-      refetchNotifications() {
+      reFetchNotifications() {
         if (this.showLoader || !this.more) return
         this.showLoader = true
         this.fetchNotifications(this.paramsObject)
@@ -190,10 +187,6 @@
         this.notifyItems = [...this.notifyItems, ...res.items]
         this.paramsObject.page += 1
         this.more = res.more
-      },
-
-      scrollHandler() {
-        infiniteScroll(this.$refs.messages, 50, this.refetchNotifications)
       }
     }
   }

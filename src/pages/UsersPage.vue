@@ -12,7 +12,12 @@
         @input="fetchBySelected"
       />
     </div>
-    <div ref="users" class="users" v-show="users.length">
+    <div
+      ref="users"
+      class="users"
+      v-show="users.length"
+      v-scroll="reFetchUsers"
+    >
       <DrInfoCard
         v-for="(user, i) in users"
         :key="user.login + i"
@@ -55,8 +60,6 @@
 <script>
   import DrInfoCard from '@/components/DrInfoCard'
   import DrLoader from '@/components/ui/DrLoader'
-  import { debounce } from '@/services/debounce'
-  import infiniteScroll from '@/services/infiniteScroll'
   import permissionsMixin from '@/components/mixins/permissions'
 
   export default {
@@ -87,14 +90,9 @@
 
     async created() {
       await this.fetchRoles().then(res => this.roles = res)
-      this.scrollHandler = debounce(this.scrollHandler, 50)
       this.usersParams.roleType = this.roles.find(it => {
         return it.code === 'AGGREGATOR'
       })
-    },
-
-    mounted() {
-      this.$refs.users.addEventListener('scroll', this.scrollHandler)
     },
 
     methods: {
@@ -107,10 +105,6 @@
       showWarning(it) {
         this.showWarningModal = true
         this.currentAction = this.removeFromList.bind(this, it)
-      },
-
-      scrollHandler() {
-        infiniteScroll(this.$refs.users, 50, this.refetchUsers)
       },
 
       removeFromList(it) {
@@ -140,7 +134,7 @@
           })
       },
 
-      refetchUsers() {
+      reFetchUsers() {
         if (this.more) {
           this.showLoader = true
           this.fetchUsers({

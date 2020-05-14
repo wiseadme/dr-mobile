@@ -42,9 +42,10 @@ export const getNotifications = notifyParams => rest.post('/api/v1/notifications
 
 //events
 export const getEventDates = () => rest.get('/api/v1/events/dates')
-export const getEvents = eventParams => rest.post('/api/v1/events/aggregators', eventParams)
+export const getAggregators = eventParams => rest.post('/api/v1/events/aggregators', eventParams)
 export const getObjects = objectParams => rest.post('/api/v1/events/objects', objectParams)
 export const getEquipments = equipmentsParams => rest.post('/api/v1/events/equipments', equipmentsParams)
+export const getChartParameters = params => rest.post('/api/v1/events/loadChart', params)
 
 //dictionaries
 export const fetchUserRoles = () => rest.get('/api/v1/reference/roles')

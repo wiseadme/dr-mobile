@@ -39,9 +39,9 @@ export default {
 		}
 	},
 
-	async [action.GET_EVENTS](context, eventParams) {
+	async [action.FETCH_AGGREGATORS](context, eventParams) {
 		try {
-			const { data } = await api.getEvents(eventParams)
+			const { data } = await api.getAggregators(eventParams)
 			return data
 		} catch (err) {
 			return Promise.reject(err)
@@ -97,6 +97,15 @@ export default {
 	async [action.CONFIRM_USER](context, params) {
 		try {
 			await api.confirmUser(params)
+		} catch (err) {
+			return Promise.reject(err)
+		}
+	},
+
+	async [action.GET_CHART_PARAMS](context, params) {
+		try {
+			const { data } = await api.getChartParameters(params)
+			return data
 		} catch (err) {
 			return Promise.reject(err)
 		}
