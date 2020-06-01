@@ -8,16 +8,11 @@
           {{ item.name ? item.name : item.senderName ? `сообщение от ${item.senderName}` : ''}}
         </span>
         <span class="card__text-item">
-          {{
-            item.login ? item.login : item.text ? item.text : ''
-          }}
+          {{ item.login ? item.login : item.text ? item.text: '' | formatText }}
         </span>
         <span class="card__text-item inn" v-if="item.inn">{{ 'инн: ' + item.inn }}</span>
-        <span class="card__text-item date" v-if="item.createdDate">
-          {{ item.statusCode ? 'дата регистрации: ' + formattedDate : 'уведомление получено: ' + formattedDate }}
-        </span>
         <div class="custom" v-if="item.textCustom">
-          {{ item.textCustom }}
+          {{ item.textCustom}}
         </div>
       </div>
       <div class="card__buttons" v-if="(okButton || cancelButton) && !confirmed && !rejected">
@@ -30,10 +25,11 @@
       >
         {{ statusMessage }}
       </div>
-      <div class="card__message" v-if="item.comment || item.text && item.senderName" @click="openComment">
+      <div class="card__message" v-if="item.comment" @click="openComment($event)">
         <i class="material-icons card__message-icon">email</i>
       </div>
     </div>
+
     <div class="card-right">
       <div class="card__head">
         <img class="card__head-image" src="../assets/images/logo-white.svg" alt="">
@@ -42,6 +38,9 @@
       <div class="card__info">
         <i class="material-icons card__info-icon">{{ icon }}</i>
       </div>
+      <span class="card__text-item date" v-if="item.createdDate">
+        {{ formattedDate }}
+      </span>
     </div>
   </div>
 </template>
@@ -92,13 +91,18 @@
 
     },
 
+    filters: {
+      formatText(text) {
+        return text.length >= 100 ? text.slice(0, 100) + '...' : text
+      }
+    },
+
     methods: {
       openComment() {
-        if (this.item.senderName) {
-          this.$emit('open-comment', this.item.text)
-        } else {
-          this.$emit('open-comment', this.item.comment)
-        }
+        const text = this.item.comment ? this.item.comment : this.item.text
+        const header = this.item.comment ? 'Комментарий' : 'Сообщение от АО "СО ЕЭС"'
+        const date = this.formattedDate
+        this.$emit('open-comment', { text, header, date })
       },
 
       approve() {
@@ -110,13 +114,14 @@
       },
 
       clickHandler() {
+        if (this.item.senderName) return this.openComment()
         this.$emit('click', this.item)
       }
     },
 
     computed: {
       formattedDate() {
-        return this.$moment(this.item.createdDate).format('LLLL')
+        return this.$moment(this.item.createdDate).format('DD.MM.YYYY HH:mm')
       }
     }
   }
@@ -149,21 +154,6 @@
       background: $classicBlue;
     }
 
-    &__text {
-      width: 100%;
-      margin: auto;
-      @include flexAlign(flex-start, flex-start, column);
-
-      &-item {
-        @include fontExo($darkBlue, 14px);
-        margin: 5px 0;
-
-        &:nth-child(1) {
-          font-weight: 900;
-        }
-      }
-    }
-
     &__message {
       @include flexAlign(center, center);
       position: absolute;
@@ -178,6 +168,22 @@
 
       &-icon {
         color: $white;
+      }
+    }
+
+
+    &__text {
+      width: 100%;
+      margin: auto;
+      @include flexAlign(flex-start, flex-start, column);
+
+      &-item {
+        @include fontExo($darkBlue, 14px);
+        margin: 5px 0;
+
+        &:nth-child(1) {
+          font-weight: 900;
+        }
       }
     }
 
@@ -255,8 +261,16 @@
     font-weight: 800;
   }
 
-  .inn, .date {
+  .inn {
     font-size: 12px;
+  }
+
+  .date {
+    display: block;
+    width: 100%;
+    text-align: center;
+    color: $white;
+    font-size: 10px !important;
   }
 
   @media screen and(max-width: 414px) {

@@ -3,17 +3,18 @@
     <transition name="fadeIn">
       <DrForm
         v-if="show"
-        @login="sendLoginParams"
-        @registration="createNewUser"
-        @password="sendEmailForPassword"
         :disabled="showCaptcha && !isCaptchaValid"
         :isRegistration="isRegistration"
         :isPasswordChange="isPasswordChange"
+        @login="sendLoginParams"
+        @registration="createNewUser"
+        @password="sendEmailForPassword"
       />
     </transition>
     <v-modal
       v-if="showCaptcha"
       modal-color="#063B87"
+      :close-btn="false"
     >
       <img
         class="modal-logo"
@@ -25,7 +26,7 @@
       </div>
       <div class="captcha" slot="body">
         <div class="captcha__content">
-          <img src='/api/v1/auth/captcha' class="captcha__task">
+          <img :src="`/api/v1/auth/captcha?${timestamp}`" class="captcha__task">
         </div>
         <div class="captcha__code">
           <v-input
@@ -43,148 +44,150 @@
 </template>
 
 <script>
-	import DrForm from '@/components/DrForm'
-	import { lStorage } from '@/utils'
-	import { deleteCookie } from '../utils'
+  import DrForm from '@/components/DrForm'
+  import { lStorage } from '@/utils'
+  import { deleteCookie } from '../utils'
 
-	export default {
-		name: 'index',
-		components: {
-			DrForm
-		},
+  export default {
+    name: 'index',
+    components: {
+      DrForm
+    },
 
-		data() {
-			return {
-				show: false,
-				email: '',
-				linkId: '',
-				showCaptcha: false,
-				captchaImg: null,
-				captcha: '',
-				isCaptchaValid: false
-			}
-		},
+    data() {
+      return {
+        show: false,
+        email: '',
+        linkId: '',
+        showCaptcha: false,
+        captchaImg: null,
+        captcha: '',
+        isCaptchaValid: false,
+        timestamp: ''
+      }
+    },
 
-		created() {
-			if (lStorage('tokens')) {
-				this.$router.replace('/cabinet')
-			}
-			if (this.isRegistration && this.$route.query.email) {
-				this.email = this.$route.query.email
-				this.linkId = this.$route.query.link_id
-				this.checkUniqId({ email: this.email, id: this.linkId })
-			}
-		},
+    created() {
+      this.timestamp = new Date().getTime()
+      if (lStorage('tokens')) {
+        this.$router.replace('/cabinet')
+      }
+      if (this.isRegistration && this.$route.query.email) {
+        this.email = this.$route.query.email
+        this.linkId = this.$route.query.link_id
+        this.checkUniqId({ email: this.email, id: this.linkId })
+      }
+    },
 
-		methods: {
-			...mapActions({
-				loginUser: `Auth/${action.LOGIN_USER}`,
-				checkUniqId: `Auth/${action.CHECK_UNIQ_ID}`,
-				createUser: `Auth/${action.CREATE_USER}`,
-				changePassword: `Auth/${action.CHANGE_PASSWORD}`,
-				checkCaptcha: `Auth/${action.CHECK_CAPTCHA}`
-			}),
+    methods: {
+      ...mapActions({
+        loginUser: `Auth/${ action.LOGIN_USER }`,
+        checkUniqId: `Auth/${ action.CHECK_UNIQ_ID }`,
+        createUser: `Auth/${ action.CREATE_USER }`,
+        changePassword: `Auth/${ action.CHANGE_PASSWORD }`,
+        checkCaptcha: `Auth/${ action.CHECK_CAPTCHA }`
+      }),
 
-			checkCaptchaCode() {
-				deleteCookie('captcha')
-				document.cookie = document.cookie + `captcha=${this.captcha}`
-				this.checkCaptcha()
-					.then(() => {
-						setTimeout(() => {
-							this.isCaptchaValid = true
-							this.showCaptcha = false
-						}, 500)
-					})
-					.catch(() => {
-						this.captcha = ''
-						this.showCaptcha = false
-						setTimeout(() => this.showCaptcha = true, 500)
-					})
-			},
+      checkCaptchaCode() {
+        deleteCookie('captcha')
+        document.cookie = document.cookie + `captcha=${ this.captcha }`
+        this.checkCaptcha()
+          .then(() => {
+            this.isCaptchaValid = true
+            this.showCaptcha = false
+            this.timestamp = new Date().getTime()
+          })
+          .catch(() => {
+            this.captcha = ''
+            this.showCaptcha = false
+            this.timestamp = new Date().getTime()
+            setTimeout(() => this.showCaptcha = true, 0)
+          })
+      },
 
-			sendLoginParams($event) {
-				this.loginUser($event)
-					.then(res => {
-						this.setStorageItems(res)
-						this.$router.replace('/cabinet')
-					})
-					.catch(err => {
-						if (err.response.data.hasCaptcha) {
-							this.tryCaptcha()
-						}
-						this.$notify({
-							type: 'danger',
-							message: err.response.data.message || err
-						})
-					})
-			},
+      sendLoginParams($event) {
+        this.loginUser($event)
+          .then(res => {
+            this.setStorageItems(res)
+            this.$router.replace('/cabinet')
+          })
+          .catch(err => {
+            if (err.response.data.hasCaptcha) {
+              this.tryCaptcha()
+            }
+            this.$notify({
+              type: 'danger',
+              message: err.response.data.message || err
+            })
+          })
+      },
 
-			tryCaptcha() {
-				this.captcha = ''
-				this.showCaptcha = true
-			},
+      tryCaptcha() {
+        this.captcha = ''
+        this.showCaptcha = true
+      },
 
-			createNewUser($event) {
-				this.createUser($event)
-					.then(res => {
-						this.setStorageItems(res)
-						this.$router.replace('/cabinet/aggregators')
-					})
-					.catch(err => {
-						this.$notify({
-							type: 'danger',
-							message: err.response.data.message,
-							duration: 7000
-						})
-					})
-			},
+      createNewUser($event) {
+        this.createUser($event)
+          .then(res => {
+            this.setStorageItems(res)
+            this.$router.replace('/cabinet')
+          })
+          .catch(err => {
+            this.$notify({
+              type: 'danger',
+              message: err.response.data.message,
+              duration: 7000
+            })
+          })
+      },
 
-			sendEmailForPassword($event) {
-				this.changePassword($event)
-					.then(() => {
-						this.$notify({
-							type: 'danger',
-							message: 'Проверьте вашу почту',
-							duration: 7000
-						})
-					})
-					.catch(err => {
-						this.$notify({
-							type: 'danger',
-							message: err.response.data.message,
-							duration: 7000
-						})
-					})
-			},
+      sendEmailForPassword($event) {
+        this.changePassword($event)
+          .then(() => {
+            this.$notify({
+              type: 'danger',
+              message: 'Проверьте вашу почту',
+              duration: 7000
+            })
+          })
+          .catch(err => {
+            this.$notify({
+              type: 'danger',
+              message: err.response.data.message,
+              duration: 7000
+            })
+          })
+      },
 
-			setStorageItems(res) {
-				const { access_token, refresh_token } = res
-				const { permissions, info } = res
-				lStorage('tokens', { access_token, refresh_token })
-				lStorage('user', { permissions, info })
-			}
-		},
+      setStorageItems(res) {
+        const { access_token, refresh_token } = res
+        const { permissions, info } = res
+        lStorage('tokens', { access_token, refresh_token })
+        lStorage('user', { permissions, info })
+      }
+    },
 
-		computed: {
-			isRegistration() {
-				return this.$route.path.includes('/auth/registration')
-			},
+    computed: {
+      isRegistration() {
+        return this.$route.path.includes('/auth/registration')
+      },
 
-			isPasswordChange() {
-				return this.$route.path.includes('/auth/password')
-			}
-		},
+      isPasswordChange() {
+        return this.$route.path.includes('/auth/password')
+      }
+    },
 
-		watch: {
-			'$route.path': {
-				immediate: true,
-				handler: function () {
-					this.show = false
-					setTimeout(() => this.show = true, 100)
-				}
-			}
-		}
-	}
+    watch: {
+      '$route.path': {
+        immediate: true,
+        handler: function () {
+          this.show = false
+          setTimeout(() => this.show = true, 100)
+        }
+      }
+    }
+  }
 </script>
 
 <style lang="scss" scoped>

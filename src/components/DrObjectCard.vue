@@ -3,9 +3,11 @@
     class="dr-object"
   >
     <div class="dr-object__left">
+      <div class="dr-object__head">
+        <span class="dr-object__head-text">{{'ОУ ' + item.name }}</span>
+      </div>
       <div class="dr-object__params">
         <div class="dr-object__info">
-          <span class="dr-object__info-name" v-show="info">{{ info.name }}</span>
           <span
             class="dr-object__info-time"
             v-show="item.timeStart">
@@ -13,20 +15,26 @@
           </span>
           <span
             class="dr-object__info-time"
+            v-show="item.plannedReductionVolume">
+            {{ `Плановый объем разгрузки ${item.plannedReductionVolume} МВт` }}
+          </span>
+          <span
+            class="dr-object__info-time"
             v-if="item.reductionVolume">
-            {{ `Исполнено обязательств ${item.reductionVolume}` }}
+            {{ `Исполнено обязательств ${item.reductionVolume} МВт` }}
           </span>
         </div>
-      </div>
-      <div class="dr-object__head">
-        <span class="dr-object__head-text">{{'ОУ ' + item.name }}</span>
       </div>
       <div class="dr-object__status">
         <div class="dr-object__status-item">
           <i :class="['material-icons', 'dr-object__status-icon', item.ready ? 'done' : 'error']">
             {{ item.ready ? 'done':'report_problem' }}
           </i>
-          <span class="dr-object__status-title">{{ item.ready ? 'готов' : 'не готов' }}</span>
+          <span class="dr-object__status-title">
+            {{
+            item.ready ? 'готов' : item.ready === null ? 'нет данных о готовности' : 'не готов'
+            }}
+          </span>
         </div>
         <div class="dr-object__status-item" v-if="isEventDay && item.ready && dateParams.isFinished">
           <i :class="['material-icons', 'dr-object__status-icon', item.eventResult ? 'done' : 'error']">
@@ -39,7 +47,7 @@
     <div class="dr-object__right">
       <div class="dr-object__btn" v-if="dateParams.isFinished" @click="$emit('open-chart',
       {uid: item.uid, type: 'controlObject'})">
-        <i class="material-icons dr-object__btn-icon">show_chart</i>
+        <i class="material-icons dr-object__btn-icon bar">show_chart</i>
       </div>
       <div class="dr-object__btn" @click="$emit('click', item)">
         <i class="material-icons dr-object__btn-icon">power</i>
@@ -96,7 +104,7 @@
       @include flexAlign(flex-start, center);
       @include fontExo($white, 12px);
       width: 100%;
-      height: 30px;
+      /*height: 30px;*/
     }
 
     &__head {
@@ -106,7 +114,7 @@
       text-transform: uppercase;
       width: 100%;
       padding: 5px;
-      margin-top: 15px;
+      margin-top: 10px;
     }
 
     &__status {
@@ -157,6 +165,10 @@
         color: $classicBlue
       }
     }
+  }
+
+  .bar {
+    font-size: 20px;
   }
 
   .done {

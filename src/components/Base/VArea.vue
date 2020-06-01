@@ -1,12 +1,14 @@
 <template>
   <div class="v-area-wrap">
-    <span class="v-area-label">{{ label }}</span>
+    <span :style="{color}" class="v-area-label">{{ label }}</span>
     <textarea
       @input="inputHandler"
       class="v-area"
       :placeholder="placeholder"
+      :value="text || value"
     ></textarea>
     <span
+      :style="{color: symbolsCount ? color: '' }"
       :class="['v-area-counter', {limit: !symbolsCount}]"
     >{{ `осталось символов ${symbolsCount}` }}</span>
   </div>
@@ -25,6 +27,12 @@
       },
       label: {
         type: String
+      },
+      value: {
+        type: String
+      },
+      color: {
+        type: String
       }
     },
     data() {
@@ -40,20 +48,22 @@
 
     methods: {
       inputHandler(e) {
-        this.text = e.target.value
-        this.counter()
-        if (this.symbolsCount) {
-          this.$emit('input', this.text)
+        this.counter(e.target.value)
+        if (e.target.value.length <= this.limit) {
+          this.text = e.target.value
+          return this.$emit('input', this.text)
         }
       },
 
-      counter() {
-        this.symbolsCount = this.limit - this.text.length
-        if (this.symbolsCount <= 0) {
-          return this.symbolsCount = 0
+      counter(text) {
+        this.symbolsCount = this.limit - text.length
+        if (this.symbolsCount < 0) {
+          this.symbolsCount = 0
         }
       }
-    }
+    },
+
+    computed: {}
   }
 </script>
 
@@ -87,6 +97,8 @@
       font-size: 12px;
       color: $classicBlue;
       padding: 5px 0;
+      position: absolute;
+      top: -20px;
     }
   }
 

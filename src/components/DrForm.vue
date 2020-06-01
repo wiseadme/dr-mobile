@@ -101,165 +101,163 @@
 </template>
 
 <script>
-	import { validate } from '@/services/validators'
-	import { debounce } from '@/services/debounce'
+  import { validate } from '@/services/validators'
+  import { debounce } from '@/services/debounce'
 
-	export default {
-		props: {
-			isRegistration: {
-				type: Boolean,
-				required: true
-			},
-			isPasswordChange: {
-				type: Boolean,
-				required: true
-			},
-			disabled: {
-				type: Boolean,
-				required: true
-			}
-		},
+  export default {
+    props: {
+      isRegistration: {
+        type: Boolean,
+        required: true
+      },
+      isPasswordChange: {
+        type: Boolean,
+        required: true
+      },
+      disabled: {
+        type: Boolean,
+        required: true
+      }
+    },
 
-		data() {
-			return {
-				formTypes: {
-					login: {
-						title: 'Форма авторизации',
-						event: 'login'
-					},
-					reg: {
-						title: 'Форма регистрации',
-						event: 'registration'
-					},
-					pass: {
-						title: 'Форма восстановления пароля',
-						event: 'password'
-					}
-				},
-				form: {
-					email: {
-						val: '',
-						valid: null
-					},
-					inn: {
-						val: '',
-						valid: null
-					},
-					inn2: {
-						val: '',
-						valid: null
-					},
-					password: {
-						val: '',
-						valid: null
-					},
-					confirmPass: {
-						val: '',
-						valid: null
-					},
-					comment: {
-						val: '',
-						valid: null
-					},
-					role: ''
-				},
-				userId: '',
-				linkId: ''
-			}
-		},
+    data() {
+      return {
+        formTypes: {
+          login: {
+            title: 'Форма авторизации',
+            event: 'login'
+          },
+          reg: {
+            title: 'Форма регистрации',
+            event: 'registration'
+          },
+          pass: {
+            title: 'Форма восстановления пароля',
+            event: 'password'
+          }
+        },
+        form: {
+          email: {
+            val: '',
+            valid: null
+          },
+          inn: {
+            val: '',
+            valid: null
+          },
+          inn2: {
+            val: '',
+            valid: null
+          },
+          password: {
+            val: '',
+            valid: null
+          },
+          confirmPass: {
+            val: '',
+            valid: null
+          },
+          comment: {
+            val: '',
+            valid: null
+          },
+          role: ''
+        },
+        userId: '',
+        linkId: ''
+      }
+    },
 
-		created() {
-			if (this.isRegistration && this.$route.query.link_id) {
-				this.form.email.val = this.$route.query.email
-				this.linkId = this.$route.query.link_id
-			}
-			this.isValid = debounce(this.isValid, 20)
-		},
+    created() {
+      if (this.isRegistration && this.$route.query.link_id) {
+        this.form.email.val = this.$route.query.email
+        this.linkId = this.$route.query.link_id
+      }
+      this.isValid = debounce(this.isValid, 20)
+    },
 
-		mounted() {
-		},
+    methods: {
+      /**
+       *
+       * @param key {string} - name of form object property
+       * @param validator {string} - name of validation type (email|password|inn)
+       */
+      isValid(validator, key) {
+        this.form[key].valid = validate(validator, this.form[key].val)
+      },
 
-		methods: {
-			/**
-			 *
-			 * @param key {string} - name of form object property
-			 * @param validator {string} - name of validation type (email|password|inn)
-			 */
-			isValid(validator, key) {
-				this.form[key].valid = validate(validator, this.form[key].val)
-			},
-			/**
-			 *
-			 * User parameters depend from the type of registration.
-			 * If registration by invitation then - add the "platform",
-			 * If without invitation - add the "inn"
-			 */
-			getUserParams() {
-				const platformFlag = !!this.$route.query.link_id || !this.isRegistration
-				const propName = platformFlag ? 'platform' : 'inn'
-				if (!this.isPasswordChange) {
-					const params = {
-						email: this.form.email.val || this.$route.query.email,
-						password: this.form.password.val,
-						[propName]: platformFlag ? this.device : this.form.inn.val
-					}
-					if (this.isRegistration && platformFlag) {
-						params.link_id = this.$route.query.link_id
-					}
-					if (this.isRegistration && !platformFlag) {
-						params.innAggregator = this.form.inn2.val
-						params.comment = this.form.comment.val
-					}
-					return params
-				}
-				return { login: this.form.email.val }
-			},
-			/**
-			 *
-			 * here we emit the form event to auth page
-			 * with user params as event value
-			 */
-			sendUserParams() {
-				const event = this.actualForm.event
-				this.$emit(event, this.getUserParams())
-			}
-		},
+      /**
+       *
+       * User parameters depend from the type of registration.
+       * If registration by invitation then - add the "platform",
+       * If without invitation - add the "inn"
+       */
+      getUserParams() {
+        const platformFlag = !!this.$route.query.link_id || !this.isRegistration
+        const propName = platformFlag ? 'platform' : 'inn'
+        if (!this.isPasswordChange) {
+          const params = {
+            email: this.form.email.val || this.$route.query.email,
+            password: this.form.password.val,
+            [propName]: platformFlag ? this.device : this.form.inn.val
+          }
+          if (this.isRegistration && platformFlag) {
+            params.link_id = this.$route.query.link_id
+          }
+          if (this.isRegistration && !platformFlag) {
+            params.innAggregator = this.form.inn2.val
+            params.comment = this.form.comment.val
+          }
+          return params
+        }
+        return { login: this.form.email.val }
+      },
+      /**
+       *
+       * here we emit the form event to auth page
+       * with user params as event value
+       */
+      sendUserParams() {
+        const event = this.actualForm.event
+        this.$emit(event, this.getUserParams())
+      }
+    },
 
-		computed: {
-			...mapState({
-				device: state => state.Auth.device,
-				refresh: state => state.Auth.refresh_token
-			}),
+    computed: {
+      ...mapState({
+        device: state => state.Auth.device,
+        refresh: state => state.Auth.refresh_token
+      }),
 
-			isFormValid() {
-				if (this.isRegistration && !this.isPasswordChange) {
-					if (this.$route.path === '/auth/registration') {
-						return this.form.email.valid && this.form.password.valid
-							&& this.confirmPassIsSame && this.form.inn.valid && this.form.inn2.valid
-					}
-					return this.form.email.valid && this.form.password.valid && this.confirmPassIsSame
-				}
-				if (this.isPasswordChange) {
-					return this.form.email.valid
-				}
-				return this.form.email.valid && this.form.password.valid
-			},
+      isFormValid() {
+        if (this.isRegistration && !this.isPasswordChange) {
+          if (this.$route.path === '/auth/registration') {
+            return this.form.email.valid && this.form.password.valid
+              && this.confirmPassIsSame && this.form.inn.valid && this.form.inn2.valid
+          }
+          return this.form.email.valid && this.form.password.valid && this.confirmPassIsSame
+        }
+        if (this.isPasswordChange) {
+          return this.form.email.valid
+        }
+        return this.form.email.valid && this.form.password.valid
+      },
 
-			confirmPassIsSame() {
-				return (this.form.confirmPass.val === this.form.password.val) && this.form.password.valid
-			},
+      confirmPassIsSame() {
+        return (this.form.confirmPass.val === this.form.password.val) && this.form.password.valid
+      },
 
-			actualForm() {
-				if (!this.isRegistration && !this.isPasswordChange) {
-					return this.formTypes.login
-				}
-				if (this.isPasswordChange) {
-					return this.formTypes.pass
-				}
-				return this.formTypes.reg
-			}
-		}
-	}
+      actualForm() {
+        if (!this.isRegistration && !this.isPasswordChange) {
+          return this.formTypes.login
+        }
+        if (this.isPasswordChange) {
+          return this.formTypes.pass
+        }
+        return this.formTypes.reg
+      }
+    }
+  }
 </script>
 
 <style lang="scss" scoped>

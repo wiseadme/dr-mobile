@@ -31,7 +31,7 @@
         @open-comment="openCommentModal"
         @approve="showWarning"
         @reject="showWarning"
-        @click="showOnEventCalendar"
+        @click="clickHandler"
       />
     </div>
     <dr-loader :show="showLoader"/>
@@ -70,10 +70,11 @@
         :src="require('../assets/images/logo-white.svg')"
       >
       <div class="modal-header-wrap" slot="header">
-        <h1 class="modal-header">Комментарий</h1>
+        <h1 class="modal-header">{{ comment.header }}</h1>
+        <h1 class="modal-header">{{ comment.date }}</h1>
       </div>
       <div class="modal-body" slot="body">
-        <div class="modal-body__text">{{ comment }}</div>
+        <div class="modal-body__text">{{ comment.text }}</div>
       </div>
     </v-modal>
   </div>
@@ -128,8 +129,14 @@
         this.showCommentModal = true
       },
 
+      clickHandler(it) {
+        if (this.selected.code === 'event') {
+          this.showOnEventCalendar(it)
+        } else if (this.selected.code === 'message')
+          this.openCommentModal(it)
+      },
+
       showOnEventCalendar(it) {
-        if (this.selected.code !== 'event') return
         this.$router.push(`/cabinet/events/${ it.eventDate }`)
       },
 
@@ -184,9 +191,11 @@
       },
 
       responseHandler(res) {
-        this.notifyItems = [...this.notifyItems, ...res.items]
-        this.paramsObject.page += 1
-        this.more = res.more
+        if (res && res.items) {
+          this.notifyItems = [...this.notifyItems, ...res.items]
+          this.paramsObject.page += 1
+          this.more = res.more
+        }
       }
     }
   }

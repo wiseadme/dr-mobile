@@ -151,7 +151,7 @@
     position: absolute;
     /*left: 12px;*/
     font-family: "Exo2-Regular", sans-serif;
-    top: 8px;
+    top: 4px;
     z-index: 10;
     color: $labelFontColor;
     font-size: 12px;

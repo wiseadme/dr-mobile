@@ -3,7 +3,7 @@
     <transition name="slideInLeft">
       <div v-show="show" class="modal" :style="{backgroundColor: modalColor}">
         <div :class="['modal__header', type]">
-          <div class="modal-close" @click="$emit('close')">
+          <div v-if="closeBtn" class="modal-close" @click="$emit('close')">
             <i class="material-icons modal-close-icon">close</i>
           </div>
           <slot name="header"></slot>
@@ -20,37 +20,42 @@
 </template>
 
 <script>
-	export default {
-		name: 'VModal',
-		props: {
-			type: {
-				type: String
-			},
+  export default {
+    name: 'VModal',
+    props: {
+      type: {
+        type: String
+      },
 
-			backColor: {
-				type: String
-			},
+      backColor: {
+        type: String
+      },
 
       bodyScroll: {
-				type: Boolean,
+        type: Boolean,
         default: false
       },
 
-			modalColor: {
-				type: String
-			}
-		},
+      modalColor: {
+        type: String
+      },
 
-		data() {
-			return {
-				show: false
-			}
-		},
+      closeBtn: {
+        type: Boolean,
+        default: true
+      }
+    },
 
-		mounted() {
-			setTimeout(() => this.show = true, 200)
-		}
-	}
+    data() {
+      return {
+        show: false
+      }
+    },
+
+    mounted() {
+      setTimeout(() => this.show = true, 200)
+    }
+  }
 </script>
 
 <style lang="scss" scoped>
@@ -77,6 +82,7 @@
     &__header {
       text-align: center;
       padding: 10px;
+      color: $classicBlue
     }
 
     &__body {
@@ -84,7 +90,7 @@
       max-height: 50vh;
       padding: 0 15px;
 
-      &-scroll{
+      &-scroll {
         overflow-y: auto;
       }
     }

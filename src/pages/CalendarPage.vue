@@ -14,6 +14,7 @@
           :language="language"
           :monday-first="true"
           :disabled-dates="disabledDates"
+          :highlighted="highlighted"
           :day-cell-content="changeCalendarContent"
           @selected="selectedHandler"
           @selectedDisabled="selectedHandler"
@@ -29,7 +30,7 @@
       </div>
       <div class="select">
         <v-select
-          v-if="aggregators.items.length && showAggregators && dateParams.isXmlAvailability"
+          v-if="aggregators.items.length && showAggregators"
           :items="aggregators.items"
           extKey="name"
           color="#063B87"
@@ -37,13 +38,14 @@
           pre-icon="dns"
           @input="changeSelected"
         />
-        <transition name="fadeIn" v-show="dateParams && dateParams.isXmlAvailability">
+        <transition name="fadeIn" v-show="dateParams">
           <div :class="['select__info', 'classic-color']" v-if="selected">
             <v-text-indicator
               :text="`Всего ОУ ${ objects.params.totalElements }`"
               :type="objects.items.length ? 'scs' : 'dng'"
             />
             <v-text-indicator
+              v-if="dateParams.isXmlAvailability"
               :text="`В том числе готовых к событию ${ objects.params.totalReady }`"
               :type="readyForAction ? 'scs': 'dng'"
             />
@@ -66,7 +68,7 @@
         ref="results"
         class="cab-bottom"
         v-scroll="fetchAggregatorObjects"
-        v-show="objects.items.length && dateParams.isXmlAvailability"
+        v-show="objects.items.length"
       >
         <div class="results">
           <div class="results__item" v-for="(it, i) of objects.items" :key="it.name + i" ref="items">
@@ -85,8 +87,7 @@
       </div>
     </transition>
     <transition name="fadeIn">
-      <div class="empty" v-if="showErrorMessage && !isEventDay ||
-      dateParams && !dateParams.isXmlAvailability"
+      <div class="empty" v-if="showErrorMessage && !isEventDay"
       >
         <i class="material-icons empty-icon">cloud_off</i>
         <span class="empty-message">Информация о статусе готовности отсутствует</span>
@@ -123,6 +124,7 @@
             <DrEquipmentCard
               :item="eq"
               :dateParams="dateParams"
+              :ready-status="dateParams.isXmlAvailability"
               @open-chart="openChart"
             />
           </div>
@@ -133,316 +135,345 @@
   </div>
 </template>
 <script>
-	import Datepicker from 'vuejs-datepicker'
-	import { ru } from 'vuejs-datepicker/dist/locale'
-	import DrLoader from '@/components/ui/DrLoader'
-	import DrObjectCard from '@/components/DrObjectCard'
-	import DrEquipmentCard from '@/components/DrEquipmentCard'
-	import DrChart from '@/components/DrChart'
+  import Datepicker from 'vuejs-datepicker'
+  import { ru } from 'vuejs-datepicker/dist/locale'
+  import DrLoader from '@/components/ui/DrLoader'
+  import DrObjectCard from '@/components/DrObjectCard'
+  import DrEquipmentCard from '@/components/DrEquipmentCard'
+  import DrChart from '@/components/DrChart'
 
-	export default {
-		components: {
-			Datepicker,
-			DrObjectCard,
-			DrEquipmentCard,
-			DrChart,
-			DrLoader
-		},
-		props: {
-			page: {}
-		},
-		data() {
-			return {
-				language: ru,
-				checkedDate: '',
-				selected: '',
-				dates: [],
-				dateParams: null,
-				disabledDates: {
-					dates: [],
-				},
-				showAggregators: false,
-				isEventDay: false,
-				showInfoModal: false,
-				showItemsPreload: false,
-				showChart: false,
-				chartParams: null,
-				aggregators: {
-					items: [],
-					page: 0,
-					more: true
-				},
-				objects: {
-					aggregatorId: '',
-					items: [],
-					objectId: '',
-					page: 0,
-					more: true,
-					params: {}
-				},
-				equipments: {
-					controlObjectId: '',
-					reductionVol: '',
-					objectName: '',
-					items: [],
-					page: 0,
-					total: '',
-					more: true
-				},
-				showErrorMessage: false,
-				listElement: null,
-				openDate: null,
-			}
-		},
+  export default {
+    components: {
+      Datepicker,
+      DrObjectCard,
+      DrEquipmentCard,
+      DrChart,
+      DrLoader
+    },
+    props: {
+      page: {}
+    },
+    data() {
+      return {
+        language: ru,
+        checkedDate: '',
+        selected: '',
+        dates: [],
+        dateParams: null,
+        disabledDates: {
+          dates: [],
+        },
+        highlighted: {
+          dates: [],
+          includeDisabled: true
+        },
+        showAggregators: false,
+        isEventDay: false,
+        showInfoModal: false,
+        showItemsPreload: false,
+        showChart: false,
+        chartParams: null,
+        aggregators: {
+          items: [],
+          page: 0,
+          more: true
+        },
+        objects: {
+          aggregatorId: '',
+          items: [],
+          objectId: '',
+          page: 0,
+          more: true,
+          params: {}
+        },
+        equipments: {
+          controlObjectId: '',
+          reductionVol: '',
+          objectName: '',
+          items: [],
+          page: 0,
+          total: '',
+          more: true
+        },
+        showErrorMessage: false,
+        listElement: null,
+        openDate: null,
+        serverTimezone: 'Europe/Moscow'
+      }
+    },
 
-		async created() {
-			await this.setEventDates()
-			if (this.$route.params.event) {
-				this.checkedDate = new Date(this.$route.params.event)
-			} else {
-				this.checkedDate = this.openDate
-			}
-			this.selectedHandler()
-		},
+    async created() {
+      await this.fetchAllDates()
+      this.setEvents()
+      this.setHolidays()
+      if (this.$route.params.event) {
+        this.checkedDate = new Date(this.$route.params.event)
+      } else {
+        this.checkedDate = this.openDate
+      }
+      this.selectedHandler()
+    },
 
-		methods: {
-			...mapActions({
-				fetchAggregators: `Data/${action.FETCH_AGGREGATORS}`,
-				getEventDates: `Data/${action.GET_EVENT_DATES}`,
-				fetchEquipments: `Data/${action.FETCH_EQUIPMENTS}`,
-				fetchObjects: `Data/${action.FETCH_OBJECTS}`,
-				getChartParams: `Data/${action.GET_CHART_PARAMS}`
-			}),
+    computed: {
+      day() {
+        return 24 * 60 * 60 * 1000
+      },
 
-			openChart(params) {
-				this.getChartParams({
-					...params,
-					date: this.formatDate(this.checkedDate)
-				})
-					.then(res => {
-						this.chartParams = res
-						this.showChart = true
-					})
-			},
+      readyForAction() {
+        return this.objects.items.filter(it => it.ready).length
+      },
 
-			formatDate(date) {
-				const formatted = this.$moment(date).format()
-				return formatted.slice(0, formatted.indexOf('T'))
-			},
+      confirmed() {
+        return this.objects.items.filter(it => it.eventResult).length
+      },
 
-			findDate(datesArray, date = null) {
-				return datesArray.find(it => {
-					if (!date) {
-						return it.eventDate === this.formatDate(this.checkedDate)
-					}
-					return it.eventDate === this.formatDate(date)
-				})
-			},
+      eventStatus() {
+        const event = this.findDate(this.dates.events)
+        if (event) return event.statusName
+        else {
+          const date = this.findDate(this.dates.dates)
+          if (date && !date.isXmlEvent) return 'нет данных'
+          if (date && date.isRejected) return date.statusName
+        }
+        return 'нет данных'
+      }
+    },
 
-			async setEventDates() {
-				const dates = await this.getEventDates()
-				const serverDate = new Date(dates.headers.date)
-				this.openDate = new Date(serverDate.getTime() + this.day)
-				this.dates = dates.data
-				this.dates.events.forEach(it => {
-					this.disabledDates.dates.push(new Date(it.eventDate))
-				})
-			},
+    methods: {
+      ...mapActions({
+        getEventDates: `Data/${ action.GET_EVENT_DATES }`,
+        fetchAggregators: `Data/${ action.FETCH_AGGREGATORS }`,
+        fetchEquipments: `Data/${ action.FETCH_EQUIPMENTS }`,
+        fetchObjects: `Data/${ action.FETCH_OBJECTS }`,
+        getChartParams: `Data/${ action.GET_CHART_PARAMS }`
+      }),
 
-			selectedHandler(date = null) {
-				if (date) {
-					if (date.timestamp) {
-						this.checkedDate = new Date(date.timestamp)
-					} else {
-						this.checkedDate = date
-					}
-				}
-				this.clearBeforeShow()
-				this.setDateParams()
-				this.dateParams ? this.setAggregators() : false
-				this.showErrorMessage = !this.dateParams
-				setTimeout(() => this.showAggregators = true)
-			},
+      openChart(params) {
+        this.getChartParams({
+          ...params,
+          date: this.formatDate(this.checkedDate)
+        })
+          .then(res => {
+            this.chartParams = res
+            this.showChart = true
+          })
+      },
 
-			setDateParams() {
-				let date = this.findDate(this.dates.events)
-				this.isEventDay = !!date
-				!date ? date = this.findDate(this.dates.dates) : false
-				this.dateParams = date
-			},
+      formatDate(date) {
+        return this.$moment(date).format('YYYY-MM-DD')
+      },
 
-			clearBeforeShow() {
-				this.resetAggregators()
-				this.showAggregators = false
-				this.selected = ''
-				if (this.$refs.dp) {
-					this.$refs.dp.close()
-				}
-			},
+      findDate(datesArray, date = null) {
+        return datesArray.find(it => {
+          if (!date && it.eventDate) {
+            return it.eventDate === this.formatDate(this.checkedDate)
+          }
+          if (date && !it.eventDate) {
+            return this.formatDate(it) === this.formatDate(date)
+          }
+          return it.eventDate === this.formatDate(date)
+        })
+      },
 
-			resetAggregators() {
-				this.aggregators.items = []
-				this.aggregators.page = 0
-				this.aggregators.more = true
-				this.resetObjects()
-			},
+      setDateParams() {
+        let date = this.findDate(this.dates.events)
+        this.isEventDay = !!date
+        !date ? date = this.findDate(this.dates.dates) : false
+        this.dateParams = date
+      },
 
-			resetObjects() {
-				this.objects.items = []
-				this.objects.page = 0
-				this.objects.more = true
-				this.resetObjectEquipments()
-			},
+      async fetchAllDates() {
+        const { data, headers } = await this.getEventDates()
+        this.openDate = this.setOpenDate(headers)
+        this.dates = data
+      },
 
-			resetObjectEquipments() {
-				this.equipments.items = []
-				this.equipments.page = 0
-				this.equipments.more = true
-			},
+      setEvents() {
+        this.dates.events.forEach(it => {
+          this.disabledDates.dates.push(new Date(it.eventDate))
+        })
+      },
 
-			changeSelected(it) {
-				this.resetObjects()
-				this.selected = it
-				setTimeout(() => {
-					this.setAggregatorObjects()
-				}, 200)
-			},
+      setHolidays() {
+        this.dates.holidays.forEach(it => {
+          this.highlighted.dates.push(new Date(it))
+        })
+      },
 
-			async setAggregators() {
-				await this.fetchAggregators({
-					date: this.formatDate(this.checkedDate),
-					page: this.aggregators.page
-				})
-					.then(({ aggregators }) => {
-						aggregators.map(it => {
-							this.aggregators.items.push(it)
-						})
-					})
-					.then(() => {
-						this.showErrorMessage = false
-						this.showAgregators = true
-						this.aggregators.page += 1
-					})
-			},
+      setOpenDate(headers) {
+        const serverTimezone = this.$moment.tz(headers.date, this.serverTimezone)
+        const [year, month, day] = this.$moment(serverTimezone.format())._a
+        const serverTime = new Date(year, month, day).getTime()
+        return new Date(serverTime + (this.day))
+      },
 
-			setAggregatorObjects() {
-				this.resetObjects()
-				if (this.showAgregators) {
-					this.fetchAggregatorObjects()
-				}
-			},
+      selectedHandler(date = null) {
+        if (date) {
+          if (date.timestamp) {
+            this.checkedDate = new Date(date.timestamp)
+          } else {
+            this.checkedDate = date
+          }
+        }
+        this.clearBeforeShow()
+        this.setDateParams()
+        this.dateParams ? this.setAggregators() : false
+        this.showErrorMessage = !this.dateParams
+        setTimeout(() => this.showAggregators = true)
+      },
 
-			fetchAggregatorObjects() {
-				if (this.objects.more && this.selected) {
-					this.showItemsPreload = true
-					this.fetchObjects({
-						aggregatorId: this.selected.uid,
-						date: this.formatDate(this.checkedDate),
-						page: this.objects.page
-					})
-						.then(res => {
-							res.objects.map(it => {
-								this.objects.items.push(it)
-							})
-							this.objects.params = {
-								totalElements: res.totalElements,
-								totalReady: res.totalReady,
-								totalSuccessResult: res.totalSuccessResult
-							}
-							this.objects.more = res.more
-							this.objects.page += 1
-							this.hideItemsPreloader(500)
-						})
-						.catch((err) => console.error(err))
-				}
-			},
+      clearBeforeShow() {
+        this.resetAggregators()
+        this.showAggregators = false
+        this.selected = ''
+        if (this.$refs.dp) {
+          this.$refs.dp.close()
+        }
+      },
 
-			setObjectEquipments(obj) {
-				this.equipments.objectName = obj.name
-				this.equipments.reductionVol = obj.reductionVolume
-				this.objects.objectId = obj.uid
-				this.resetObjectEquipments()
-				this.fetchObjectEquipments()
-			},
+      resetAggregators() {
+        this.aggregators.items = []
+        this.aggregators.page = 0
+        this.aggregators.more = true
+        this.resetObjects()
+      },
 
-			fetchObjectEquipments() {
-				if (this.equipments.more && !this.showItemsPreload) {
-					if (this.selected) {
-						this.showItemsPreload = true
-					}
-					this.fetchEquipments({
-						controlObjectId: this.objects.objectId,
-						date: this.formatDate(this.checkedDate),
-						page: this.equipments.page
-					})
-						.then(res => {
-							res.equipments.map(it => {
-								this.equipments.items.push(it)
-							})
-							this.showInfoModal = true
-							this.equipments.more = res.more
-							this.equipments.page += 1
-							this.equipments.total = res.totalElements
-							this.hideItemsPreloader(500)
-						})
-						.catch((err) => {
-							console.error(err)
-							this.showItemsPreload = false
-						})
-				}
-			},
+      resetObjects() {
+        this.objects.items = []
+        this.objects.page = 0
+        this.objects.more = true
+        this.resetObjectEquipments()
+      },
 
-			hideItemsPreloader(duration) {
-				setTimeout(() => {
-					this.showItemsPreload = false
-				}, duration)
-			},
+      resetObjectEquipments() {
+        this.equipments.items = []
+        this.equipments.page = 0
+        this.equipments.more = true
+      },
 
-			changeCalendarContent(e) {
-				if (this.dates.dates || this.dates.events) {
-					let eventDate = null
-					const date = new Date(e.timestamp)
-					const day = date.getDate()
-					const isPast = e.timestamp < new Date().getTime()
-					const pastMonth = date.getMonth() < new Date().getMonth()
-					const pastYear = date.getFullYear() <= new Date().getFullYear()
-					const simpleDate = this.findDate(this.dates.dates, this.formatDate(date))
-					!simpleDate ? eventDate = this.findDate(this.dates.events, this.formatDate(date)) : false
-					if (simpleDate && (simpleDate.isXmlAvailability && simpleDate.isXmlEvent)) return day + ' &#9872;'
-					if (eventDate && eventDate.isPlanned) return day + ' &#9733;'
-					if (eventDate && eventDate.isFinished) return day + ' &#10004;'
-					if ((!eventDate || !simpleDate) && isPast) return day + ' &#8855;'
-					if (pastMonth && pastYear && !eventDate) return day + ' &#8855;'
-					return day
-				}
-			}
-		},
+      changeSelected(it) {
+        this.resetObjects()
+        this.selected = it
+        setTimeout(() => {
+          this.setAggregatorObjects()
+        }, 200)
+      },
 
-		computed: {
-			day() {
-				return 24 * 60 * 60 * 1000
-			},
+      async setAggregators() {
+        await this.fetchAggregators({
+          date: this.formatDate(this.checkedDate),
+          page: this.aggregators.page
+        })
+          .then(({ aggregators }) => {
+            if (aggregators) {
+              aggregators.map(it => {
+                this.aggregators.items.push(it)
+              })
+            }
+          })
+          .then(() => {
+            this.showErrorMessage = false
+            this.showAgregators = true
+            this.aggregators.page += 1
+          })
+      },
 
-			readyForAction() {
-				return this.objects.items.filter(it => it.ready).length
-			},
+      setAggregatorObjects() {
+        this.resetObjects()
+        if (this.showAgregators) {
+          this.fetchAggregatorObjects()
+        }
+      },
 
-			confirmed() {
-				return this.objects.items.filter(it => it.eventResult).length
-			},
+      fetchAggregatorObjects() {
+        if (this.objects.more && this.selected) {
+          this.showItemsPreload = true
+          this.fetchObjects({
+            aggregatorId: this.selected.uid,
+            date: this.formatDate(this.checkedDate),
+            page: this.objects.page
+          })
+            .then(res => {
+              res.objects.map(it => {
+                this.objects.items.push(it)
+              })
+              this.objects.params = {
+                totalElements: res.totalElements,
+                totalReady: res.totalReady,
+                totalSuccessResult: res.totalSuccessResult
+              }
+              this.objects.more = res.more
+              this.objects.page += 1
+              this.hideItemsPreloader(500)
+            })
+            .catch((err) => console.error(err))
+        }
+      },
 
-			eventStatus() {
-				const event = this.findDate(this.dates.events)
-				if (event) return event.statusName
-				if (!event) {
-					const date = this.findDate(this.dates.dates)
-					if (date && !date.isXmlEvent) return 'нет данных'
-					if (date && date.isRejected) return date.statusName
-				}
-				return 'нет данных'
-			}
-		}
-	}
+      setObjectEquipments(obj) {
+        this.equipments.objectName = obj.name
+        this.equipments.reductionVol = obj.reductionVolume
+        this.objects.objectId = obj.uid
+        this.resetObjectEquipments()
+        this.fetchObjectEquipments()
+      },
+
+      fetchObjectEquipments() {
+        if (this.equipments.more && !this.showItemsPreload) {
+          if (this.selected) {
+            this.showItemsPreload = true
+          }
+          this.fetchEquipments({
+            controlObjectId: this.objects.objectId,
+            date: this.formatDate(this.checkedDate),
+            page: this.equipments.page
+          })
+            .then(res => {
+              res.equipments.map(it => {
+                this.equipments.items.push(it)
+              })
+              this.showInfoModal = true
+              this.equipments.more = res.more
+              this.equipments.page += 1
+              this.equipments.total = res.totalElements
+              this.hideItemsPreloader(500)
+            })
+            .catch((err) => {
+              console.error(err)
+              this.showItemsPreload = false
+            })
+        }
+      },
+
+      hideItemsPreloader(duration) {
+        setTimeout(() => {
+          this.showItemsPreload = false
+        }, duration)
+      },
+
+      //этот говнокод нужно отрефакторить
+      changeCalendarContent(e) {
+        if (this.dates.dates || this.dates.events) {
+          const { day, isPast, holiday, simpleDay, eventDay } = this.detectDateStatus(e)
+          const { isXmlAvailability, isXmlEvent } = simpleDay ? simpleDay : eventDay ? eventDay : false
+          if ((!isXmlAvailability || !isXmlEvent) && !holiday && !eventDay && isPast) return day + ' !'
+          if (!simpleDay && !holiday && !eventDay && isPast) return day + ' !'
+          if (eventDay && eventDay.isFinished) return day + ' &#10004;'
+          return day
+        }
+      },
+
+      detectDateStatus(dateParams) {
+        const date = new Date(dateParams.timestamp)
+        const day = date.getDate()
+        const isPast = dateParams.timestamp < new Date().getTime()
+        const holiday = this.findDate(this.dates.holidays, this.formatDate(date))
+        const simpleDay = !holiday ? this.findDate(this.dates.dates, this.formatDate(date)) : null
+        const eventDay = !holiday && !simpleDay ? this.findDate(this.dates.events, this.formatDate(date)) : null
+        return { date, day, isPast, holiday, simpleDay, eventDay }
+      }
+    }
+  }
 </script>
 
 <style lang="scss">
@@ -489,8 +520,8 @@
     }
 
     &__calendar {
-      @include fontExo($darkBlue, 12px);
-      background: $white !important;
+      @include fontExo($white, 12px);
+      background: $classicBlue !important;
       width: 400px !important;
       max-width: 100% !important;
       border: none !important;
@@ -500,27 +531,54 @@
       top: 110%;
 
       .prev, .next {
-        background: $white;
+        background: $classicBlue;
 
         &:hover {
-          background: $white !important;
+          background: $classicBlue !important;
+        }
+      }
+
+      .prev {
+        &::after {
+          content: "" !important;
+          display: block !important;
+          width: 0 !important;
+          height: 0 !important;
+          border-top: 8px solid transparent !important;
+          border-bottom: 8px solid transparent !important;
+          border-right: 10px solid $white !important;
+        }
+      }
+
+      .next {
+        &::after {
+          content: "" !important;
+          display: block !important;
+          width: 0 !important;
+          height: 0 !important;
+          border-top: 8px solid transparent !important;
+          border-bottom: 8px solid transparent !important;
+          border-left: 10px solid $white !important;
         }
       }
 
       .up {
-        background: $white;
+        background: $classicBlue;
+
+        &:hover {
+          background: none !important;
+        }
       }
 
       .selected {
-        background: $blue !important;
+        background: $orange !important;
         color: $white !important;
       }
 
       .disabled {
         @include fontExo($red, 12px);
-        color: $red !important;
-        background: transparent;
-        border: 1px solid $blue !important;
+        color: $white !important;
+        background: $greenLight;
       }
 
       .day:not(.disabled) {
@@ -528,18 +586,20 @@
       }
 
       .blank {
-        background: $white !important;
+        background: $classicBlue !important;
       }
 
       .today:not(.selected) {
-        background: transparent !important;
-      }
-
-      .today {
-        border: 1px solid $orange !important;
+        background: $darkGrey !important;
       }
     }
   }
+
+  .highlighted {
+    background: transparent !important;
+    color: $orange;
+  }
+
 
   .aggregators-page {
     @include flexAlign(center, flex-start, column);
@@ -567,7 +627,7 @@
     position: relative;
 
     &-header {
-      @include fontExo($blue, 1em);
+      @include fontExo($classicBlue, 1em);
       margin-bottom: 5px;
 
       &-wrap {

@@ -1,7 +1,7 @@
-<template>
+<template functional>
   <div class="indicator">
-    <span :class="[`indicator__circle indicator__circle--${type}`]"></span>
-    <span :class="['indicator__text', customClass]">{{ text }}</span>
+    <span :class="[`indicator__circle indicator__circle--${props.type}`]"></span>
+    <span :class="['indicator__text', props.customClass]">{{ props.text }}</span>
   </div>
 </template>
 <script>
@@ -10,6 +10,7 @@
       text: {
         type: String
       },
+
       type: {
         type: String,
         default: 'scs'

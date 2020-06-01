@@ -31,7 +31,6 @@
   import dashboard from '@/schemes/dashboard'
   import permissionsMixin from '@/components/mixins/permissions'
   import { fetchDevices } from '@/api'
-  import { lStorage } from '@/utils'
 
   export default {
     mixins: [permissionsMixin],
@@ -53,15 +52,6 @@
         setStyle: 'Style/SET_STYLE',
       }),
 
-      setAppStyle(flag) {
-        if (lStorage('style')) {
-          lStorage('style', null, true)
-        } else {
-          lStorage('style', flag)
-        }
-        this.setStyle(flag)
-      },
-
       routeTo(it) {
         if (it.link && this.$route.path !== it.link) {
           this.$router.push(it.link)
@@ -77,12 +67,12 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
-    padding-top: 20px;
+    padding-top: 15vh;
   }
 
   .logo {
     width: 100%;
-    margin: 0px auto 20px auto;
+    margin: 20px auto;
     text-align: center;
 
     &__img {

@@ -2,16 +2,20 @@
   <div class="dr-equipment">
     <div class="dr-equipment__stats">
       <span class="dr-equipment__text">{{ item.name }}</span>
-      <v-checkbox color="#ffffff" :isChecked="item.ready" label="готов" :disabled="true"/>
+      <v-checkbox v-if="readyStatus" color="#ffffff" :isChecked="item.ready" label="готов" :disabled="true"/>
+      <div class="dr-equipment__report" v-else>
+        <i class="material-icons">report_problem</i>
+        <span>нет данных о готовности</span>
+      </div>
       <span class="dr-equipment__sub" v-if="item.consumers">
         {{ item.consumers ? item.consumers.name : '' }}
       </span>
       <span class="dr-equipment__sub" v-if="item.reductionVolume">
-        {{ item.reductionVolume ? item.reductionVolume : '' }}
+        {{ item.reductionVolume ? `Исполнено ${item.reductionVolume} МВт` : 'Не исполнено' }}
       </span>
     </div>
     <div
-      v-if="item.ready && dateParams.isFinished"
+      v-if="dateParams.isFinished"
       class="dr-equipment__btn"
       @click="$emit('open-chart',{type: 'equipment', uid: item.uid})"
     >
@@ -21,18 +25,21 @@
 </template>
 
 <script>
-	export default {
-		props: {
-			item: {
-				type: Object,
-				required: true
-			},
-			dateParams: {
-				type: Object,
-				required: true
-			}
-		}
-	}
+  export default {
+    props: {
+      item: {
+        type: Object,
+        required: true
+      },
+      dateParams: {
+        type: Object,
+        required: true
+      },
+      readyStatus: {
+        type: Boolean
+      }
+    }
+  }
 </script>
 
 <style lang="scss" scoped>
@@ -60,7 +67,8 @@
       margin: 8px 0;
 
       &-icon {
-        color: $classicBlue
+        color: $classicBlue;
+        font-size: 20px;
       }
     }
 
