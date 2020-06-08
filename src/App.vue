@@ -34,11 +34,9 @@
     },
 
     created() {
-      this.$moment.lang('ru')
       let device = lStorage('device')
       let tokens = lStorage('tokens')
       let user = lStorage('user')
-      tokens = tokens ? tokens : null
       if (!device) {
         this.setDevice(navigator.platform)
         lStorage('device', navigator.platform)
