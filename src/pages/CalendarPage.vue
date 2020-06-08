@@ -87,10 +87,14 @@
       </div>
     </transition>
     <transition name="fadeIn">
-      <div class="empty" v-if="showErrorMessage && !isEventDay"
+      <div class="empty" v-show="(showEmptyStatus || !showEmptyStatus) && !isEventDay && !aggregators.items.length"
       >
-        <i class="material-icons empty-icon">cloud_off</i>
-        <span class="empty-message">Информация о статусе готовности отсутствует</span>
+        <i class="material-icons empty-icon" v-show="showEmptyStatus">cloud_off</i>
+        <span class="empty-message">
+          {{
+          showEmptyStatus? 'Информация о статусе готовности отсутствует' : 'Загрузка...'
+          }}
+        </span>
       </div>
     </transition>
     <transition name="fadeIn">
@@ -125,6 +129,7 @@
               :item="eq"
               :dateParams="dateParams"
               :ready-status="dateParams.isXmlAvailability"
+              :object-name="equipments.objectName"
               @open-chart="openChart"
             />
           </div>
@@ -141,6 +146,7 @@
   import DrObjectCard from '@/components/DrObjectCard'
   import DrEquipmentCard from '@/components/DrEquipmentCard'
   import DrChart from '@/components/DrChart'
+  import timezone from '@/schemes/timezones'
 
   export default {
     components: {
@@ -157,6 +163,7 @@
       return {
         language: ru,
         checkedDate: '',
+        openDate: '',
         selected: '',
         dates: [],
         dateParams: null,
@@ -167,11 +174,12 @@
           dates: [],
           includeDisabled: true
         },
-        showAggregators: false,
         isEventDay: false,
+        showAggregators: false,
         showInfoModal: false,
         showItemsPreload: false,
         showChart: false,
+        showEmptyStatus: false,
         chartParams: null,
         aggregators: {
           items: [],
@@ -195,48 +203,20 @@
           total: '',
           more: true
         },
-        showErrorMessage: false,
         listElement: null,
-        openDate: null,
-        serverTimezone: 'Europe/Moscow'
+        nextWorkingDay: null,
+        responseDatetime: ''
       }
     },
 
     async created() {
+      // console.time('start')
       await this.fetchAllDates()
       this.setEvents()
       this.setHolidays()
-      if (this.$route.params.event) {
-        this.checkedDate = new Date(this.$route.params.event)
-      } else {
-        this.checkedDate = this.openDate
-      }
+      this.findNextWorkingDay(this.$moment.tz(this.responseDatetime, timezone.Moscow ))
       this.selectedHandler()
-    },
-
-    computed: {
-      day() {
-        return 24 * 60 * 60 * 1000
-      },
-
-      readyForAction() {
-        return this.objects.items.filter(it => it.ready).length
-      },
-
-      confirmed() {
-        return this.objects.items.filter(it => it.eventResult).length
-      },
-
-      eventStatus() {
-        const event = this.findDate(this.dates.events)
-        if (event) return event.statusName
-        else {
-          const date = this.findDate(this.dates.dates)
-          if (date && !date.isXmlEvent) return 'нет данных'
-          if (date && date.isRejected) return date.statusName
-        }
-        return 'нет данных'
-      }
+      // console.timeEnd('start')
     },
 
     methods: {
@@ -248,13 +228,13 @@
         getChartParams: `Data/${ action.GET_CHART_PARAMS }`
       }),
 
-      openChart(params) {
+      openChart({ type, uid, header }) {
         this.getChartParams({
-          ...params,
+          type, uid,
           date: this.formatDate(this.checkedDate)
         })
           .then(res => {
-            this.chartParams = res
+            this.chartParams = { ...res, header }
             this.showChart = true
           })
       },
@@ -285,6 +265,7 @@
       async fetchAllDates() {
         const { data, headers } = await this.getEventDates()
         this.openDate = this.setOpenDate(headers)
+        this.responseDatetime = headers.date
         this.dates = data
       },
 
@@ -301,10 +282,26 @@
       },
 
       setOpenDate(headers) {
-        const serverTimezone = this.$moment.tz(headers.date, this.serverTimezone)
-        const [year, month, day] = this.$moment(serverTimezone.format())._a
-        const serverTime = new Date(year, month, day).getTime()
-        return new Date(serverTime + (this.day))
+        return new Date(this.timezoneDate(headers.date) + (this.oneDay))
+      },
+
+      timezoneDate(dateTime) {
+        const timezone = this.$moment.tz(dateTime, 'Europe/Moscow')
+        const [year, month, day] = this.$moment(timezone.format())._a
+        return new Date(year, month, day).getTime()
+      },
+
+
+      findNextWorkingDay(date) {
+        let tomorrow = this.timezoneDate(date) + this.oneDay
+        let notWorkingDay = this.dates.holidays.find(it => {
+          return this.formatDate(new Date(tomorrow)) === this.formatDate(it)
+        })
+        if (notWorkingDay) {
+          return this.findNextWorkingDay(tomorrow)
+        }
+        this.nextWorkingDay = new Date(tomorrow)
+        this.checkedDate = this.$route.params.event || this.nextWorkingDay
       },
 
       selectedHandler(date = null) {
@@ -317,8 +314,8 @@
         }
         this.clearBeforeShow()
         this.setDateParams()
-        this.dateParams ? this.setAggregators() : false
-        this.showErrorMessage = !this.dateParams
+        this.setAggregators()
+        this.showEmptyStatus = !this.dateParams
         setTimeout(() => this.showAggregators = true)
       },
 
@@ -365,16 +362,15 @@
           page: this.aggregators.page
         })
           .then(({ aggregators }) => {
-            if (aggregators) {
+            if (aggregators && aggregators.length) {
               aggregators.map(it => {
                 this.aggregators.items.push(it)
               })
+              this.showAgregators = true
+              this.aggregators.page += 1
+            } else {
+              this.showEmptyStatus = true
             }
-          })
-          .then(() => {
-            this.showErrorMessage = false
-            this.showAgregators = true
-            this.aggregators.page += 1
           })
       },
 
@@ -454,10 +450,11 @@
       //этот говнокод нужно отрефакторить
       changeCalendarContent(e) {
         if (this.dates.dates || this.dates.events) {
-          const { day, isPast, holiday, simpleDay, eventDay } = this.detectDateStatus(e)
-          const { isXmlAvailability, isXmlEvent } = simpleDay ? simpleDay : eventDay ? eventDay : false
-          if ((!isXmlAvailability || !isXmlEvent) && !holiday && !eventDay && isPast) return day + ' !'
-          if (!simpleDay && !holiday && !eventDay && isPast) return day + ' !'
+          const { day, canceledDay, eventDay, date } = this.detectDateStatus(e)
+          const { isXmlAvailability, isXmlEvent } = canceledDay ? canceledDay : eventDay ? eventDay : false
+          const nextWorkingDate = date.getTime() === this.nextWorkingDay?.getTime()
+          if (nextWorkingDate && isXmlAvailability && !isXmlEvent) return day + ' ?'
+          if (nextWorkingDate && !isXmlAvailability && isXmlEvent) return day + ' !'
           if (eventDay && eventDay.isFinished) return day + ' &#10004;'
           return day
         }
@@ -468,11 +465,36 @@
         const day = date.getDate()
         const isPast = dateParams.timestamp < new Date().getTime()
         const holiday = this.findDate(this.dates.holidays, this.formatDate(date))
-        const simpleDay = !holiday ? this.findDate(this.dates.dates, this.formatDate(date)) : null
-        const eventDay = !holiday && !simpleDay ? this.findDate(this.dates.events, this.formatDate(date)) : null
-        return { date, day, isPast, holiday, simpleDay, eventDay }
+        const canceledDay = !holiday ? this.findDate(this.dates.dates, this.formatDate(date)) : null
+        const eventDay = !holiday && !canceledDay ? this.findDate(this.dates.events, this.formatDate(date)) : null
+        return { date, day, isPast, holiday, canceledDay, eventDay }
       }
-    }
+    },
+
+    computed: {
+      oneDay() {
+        return 24 * 60 * 60 * 1000
+      },
+
+      readyForAction() {
+        return this.objects.items.filter(it => it.ready).length
+      },
+
+      confirmed() {
+        return this.objects.items.filter(it => it.eventResult).length
+      },
+
+      eventStatus() {
+        const event = this.findDate(this.dates.events)
+        if (event) return event.statusName
+        else {
+          const date = this.findDate(this.dates.dates)
+          if (date && !date.isXmlEvent) return 'нет данных'
+          if (date && date.isRejected) return date.statusName
+        }
+        return 'нет данных'
+      }
+    },
   }
 </script>
 
