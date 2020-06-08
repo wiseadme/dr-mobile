@@ -216,6 +216,7 @@
       this.setHolidays()
       this.findNextWorkingDay(this.$moment.tz(this.responseDatetime, timezone.Moscow ))
       this.selectedHandler()
+      this.$moment.lang('ru')
       // console.timeEnd('start')
     },
 
